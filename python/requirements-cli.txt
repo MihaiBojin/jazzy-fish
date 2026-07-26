@@ -1,2 +1,2 @@
 # CLI requirements
-duckdb ==1.4.2
+duckdb ==1.5.5
