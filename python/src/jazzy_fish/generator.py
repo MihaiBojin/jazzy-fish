@@ -27,9 +27,9 @@ class Resolution(Enum):
     Generally, do not use minutes unless certain that the generator will be seldomly called, or if specifying sufficient sequence_bits.
     """
 
-    MINUTE: int = 60000
-    SECOND: int = 1000
-    MILLISECOND: int = 1
+    MINUTE = 60000
+    SECOND = 1000
+    MILLISECOND = 1
 
 
 class Generator:
