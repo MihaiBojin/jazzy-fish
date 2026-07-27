@@ -111,17 +111,42 @@ Your exercise of permissions under this License.
 
 ## Developers
 
-This repository uses `pre-commit` to manage git hooks. It is installed by default in the python library, and you can also
-install it manually with `pip install pre-commit`.
-
-After cloning the repo with `git clone git@github.com:jazzy-fish/jazzy-fish.git` you should install git hooks with:
+This repository uses [uv](https://docs.astral.sh/uv/). Install it, then one command gets you a working
+development environment:
 
 ```shell
-pre-commit install
+git clone git@github.com:jazzy-fish/jazzy-fish.git
+cd jazzy-fish/python
+uv sync --all-extras
 ```
 
-You can manually run the hooks against all files with `pre-commit run --all-files` or
-read the documentation at <https://pre-commit.com/>.
+That creates `python/.venv/`, installs everything from the committed `uv.lock`, and provisions a Python
+interpreter if you do not have a suitable one. Run commands through `uv run` (`uv run pytest tests`) or
+activate the environment with `source .venv/bin/activate`.
+
+The `Makefile` targets in `python/` are thin wrappers over `uv` and are kept for convenience.
+
+### Dependencies
+
+Declare them in `python/pyproject.toml`, then refresh the lock file:
+
+```shell
+uv lock
+```
+
+Commit `uv.lock` alongside the `pyproject.toml` change; CI runs `uv sync --locked` and fails if the two
+disagree.
+
+### Git hooks
+
+This repository uses `pre-commit` to manage git hooks. Install them with:
+
+```shell
+make setup
+```
+
+You can manually run the hooks against all files with `make lint` (or `uv run pre-commit run --all-files`),
+or read the documentation at <https://pre-commit.com/>.
 
 ## Advanced topics
 

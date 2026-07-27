@@ -7,7 +7,7 @@
     "wordlists"
   ],
   "editor.formatOnSave": true,
-  "python.defaultInterpreterPath": "python/venv/bin/python",
+  "python.defaultInterpreterPath": "python/.venv/bin/python",
   "python.terminal.activateEnvInCurrentTerminal": true,
   "python.envFile": "${workspaceFolder}/.env",
   "terminal.integrated.defaultProfile.linux": "zsh",
