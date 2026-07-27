@@ -1,9 +1,9 @@
 # Jazzy Fish - Sufficiently-large, unique, human-friendly identifiers
 
-![Build Status](https://github.com/jazzy-fish/jazzy-fish/actions/workflows/python-tests.yml/badge.svg)
+![Build Status](https://github.com/MihaiBojin/jazzy-fish/actions/workflows/python-tests.yml/badge.svg)
 [![PyPI version](https://badge.fury.io/py/jazzy-fish.svg)](https://badge.fury.io/py/jazzy-fish)
 [![Python Versions](https://img.shields.io/pypi/pyversions/jazzy-fish.svg)](https://pypi.org/project/jazzy-fish/)
-[![License](https://img.shields.io/github/license/jazzy-fish/jazzy-fish.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/MihaiBojin/jazzy-fish.svg)](LICENSE)
 
 Jazzy Fish is a library that helps you generate a sufficient number of identifiers, with a human-friendly kick.
 
@@ -33,7 +33,7 @@ Install it via:
 pip install jazzy-fish
 
 # or alternatively, directly from git
-pip install "git+https://github.com/jazzy-fish/jazzy-fish@main#subdirectory=python"
+pip install "git+https://github.com/MihaiBojin/jazzy-fish@main#subdirectory=python"
 ```
 
 The implementation roughly works as follows:
@@ -115,7 +115,7 @@ This repository uses [uv](https://docs.astral.sh/uv/). Install it, then one comm
 development environment:
 
 ```shell
-git clone git@github.com:jazzy-fish/jazzy-fish.git
+git clone git@github.com:MihaiBojin/jazzy-fish.git
 cd jazzy-fish/python
 uv sync --all-extras
 ```
