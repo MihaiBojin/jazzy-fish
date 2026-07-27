@@ -27,7 +27,7 @@ from jazzy_fish_tools.helpers import (
     reset_location,
 )
 import duckdb
-from duckdb.typing import VARCHAR, INTEGER
+from duckdb.sqltypes import VARCHAR, INTEGER
 
 # Set to true to only analyze real prefixes (01, 012, 0123, etc.)
 ONLY_SEQ_PREFIXES = False

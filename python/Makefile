@@ -7,7 +7,7 @@ venv:
 .PHONY: clean
 clean: clean-venv
 	@echo Cleaning up builds and caches...
-	@rm -rf {out,dist,build}
+	@rm -rf {out,dist,build,.mypy_cache,.ruff_cache}
 	@find . -type d -path ./venv -prune -o -name ".pytest_cache" -exec rm -rf {} \;
 	@find . -type d -path ./venv -prune -o -name "__pycache__" -exec rm -rf {} \;
 	@find . -type d -path ./venv -prune -o -name "*.egg-info" -exec rm -rf {} \;
@@ -25,7 +25,7 @@ create-venv:
 .PHONY: install
 install:
 	@echo "Installing packages in editable mode..."
-	@python -m pip install -e ".[dev]" # toml
+	@python -m pip install -e ".[dev]"
 	@scripts/uninstall-package.bash
 	@python -m pip install -e ".[cli,dev]"
 
@@ -53,7 +53,7 @@ build:
 	@python -m build
 
 .PHONY: build-inspect
-build-inspect: PROJECT_NAME = $(shell python -c "import toml; print(toml.load('pyproject.toml')['project']['name'])")
+build-inspect: PROJECT_NAME = $(shell python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['name'])")
 build-inspect:
 	@echo
 	@echo "Inspecting wheel..."
@@ -63,7 +63,7 @@ build-inspect:
 	@echo "Inspecting archive..."
 	@tar -tf dist/$(PROJECT_NAME)-$(shell cat VERSION).tar.gz
 
-.PHONY: docker-image
+.PHONY: docker
 docker:
 	@echo
 	@echo "Building Dockerfile..."
@@ -73,7 +73,7 @@ docker:
 docker-run:
 	@echo
 	@echo "Running Docker image..."
-	@scripts/run-docker-image.bash
+	@scripts/run-docker-image.bash $(ARGS)
 
 .PHONY: publish-test
 publish-test: build

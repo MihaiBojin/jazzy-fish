@@ -5,23 +5,37 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=1024"]
+      # keep-sorted start
       - id: check-ast
       - id: check-docstring-first
       - id: check-yaml
       - id: debug-statements
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      # keep-sorted end
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.0
     hooks:
       - id: ruff-check
+        args: ["--fix"]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v2.3.0
     hooks:
       - id: mypy
+        # The package (and its mypy config) lives under python/, but pre-commit
+        # runs hooks from the repo root, so point mypy at the config explicitly.
+        # Setting args replaces the hook's defaults, so repeat them here:
+        # third-party stubs are not installed in the hook's isolated env.
+        args:
+          [
+            "--ignore-missing-imports",
+            "--scripts-are-modules",
+            "--config-file",
+            "python/pyproject.toml",
+          ]
 
   - repo: https://gitlab.com/bmares/check-json5
     rev: v1.0.1
