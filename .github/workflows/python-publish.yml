@@ -40,6 +40,12 @@ jobs:
   publish:
     needs: lint-test
     runs-on: ubuntu-latest
+    permissions:
+      # Mints the OIDC token that PyPI exchanges for a short-lived upload
+      # token. Naming any permission drops the defaults, so 'contents: read'
+      # has to be restated for the checkout.
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -58,17 +64,17 @@ jobs:
         working-directory: python
         run: uv build
 
+      # No tokens: PyPI and test.PyPI each exchange this workflow's OIDC
+      # identity for a short-lived upload token. 'always' rather than the
+      # default 'automatic' so a missing or misconfigured trusted publisher
+      # fails loudly instead of falling back to looking for credentials.
       - name: Publish package to test repository
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.TESTPYPI_PASSWORD }}
         working-directory: python
-        run: uv publish --index testpypi
+        run: uv publish --index testpypi --trusted-publishing always
 
       - name: Publish package
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_PASSWORD }}
         working-directory: python
-        run: uv publish
+        run: uv publish --trusted-publishing always
 
       - name: Waiting 30 seconds for the PyPI indexes to be updated
         run: sleep 30

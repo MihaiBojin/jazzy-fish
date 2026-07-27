@@ -133,9 +133,15 @@ git push origin v0.1.x
 
 A [GitHub Action](https://github.com/jazzy-fish/jazzy-fish/actions) will run, build the library and publish it to the PyPI repositories.
 
+The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trusted-publishers/), so it
+holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived
+upload token, which requires `id-token: write` on the publishing job and a trusted publisher registered
+on **both** indexes, pointing at `python-publish.yml` in this repository.
+
 #### Manual
 
-These steps can also be performed locally. For these commands to work, you will need to export two environment variables:
+These steps can also be performed locally. Trusted Publishing only works from CI, so publishing by hand
+still needs tokens:
 
 ```shell
 export TESTPYPI_PASSWORD=... # token for https://test.pypi.org/legacy/
