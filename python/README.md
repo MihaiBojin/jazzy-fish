@@ -142,6 +142,9 @@ export TESTPYPI_PASSWORD=... # token for https://test.pypi.org/legacy/
 export PYPI_PASSWORD=... # token for https://upload.pypi.org/legacy/
 ```
 
+The `Makefile` passes these to `uv publish` as `UV_PUBLISH_TOKEN`; the test index is defined as
+`testpypi` under `[[tool.uv.index]]` in `pyproject.toml`.
+
 First, publish to the test repo and inspect the package:
 
 ```shell
