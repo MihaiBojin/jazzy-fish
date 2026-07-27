@@ -36,7 +36,7 @@ cli = [
     # duckdb requires numpy to register the Python UDFs used by generate-wordlists.
     # Held at 2.4.x: numpy 2.5 requires Python >=3.12, which would silently drop
     # the cli extra on the 3.11 this project supports.
-    "numpy==2.4.6",
+    "numpy==2.5.1",
     # keep-sorted end
 ]
 dev = [
