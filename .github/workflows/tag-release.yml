@@ -1,0 +1,57 @@
+name: Tag Release
+
+on:
+  # Every push to main, but only a version bump results in a tag
+  push:
+    branches:
+      - main
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      # Push the tag
+      contents: write
+      # Dispatch the publish workflow
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag the release
+        id: tag
+        working-directory: python
+        run: echo "tag=$(scripts/tag-release.bash)" >>"$GITHUB_OUTPUT"
+
+      # A tag pushed with GITHUB_TOKEN does not trigger `on: push: tags` --
+      # GitHub suppresses those events to prevent workflows recursing. Of the
+      # events that are exempt, workflow_dispatch is the one that fits, so the
+      # publish workflow is started explicitly against the new tag. This avoids
+      # keeping a long-lived PAT solely to make a tag push observable.
+      - name: Publish the tagged release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Dispatching python-publish.yml against ${{ steps.tag.outputs.tag }}..."
+          gh workflow run python-publish.yml --ref "${{ steps.tag.outputs.tag }}"
+
+      - name: Report
+        run: |
+          if [ -n "${{ steps.tag.outputs.tag }}" ]; then
+            echo "Released ${{ steps.tag.outputs.tag }}" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "No version change; nothing to release." >>"$GITHUB_STEP_SUMMARY"
+          fi
