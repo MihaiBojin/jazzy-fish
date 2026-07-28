@@ -14,10 +14,17 @@ readonly VERSION
 PROJECT_NAME="$(get_project_name)"
 readonly PROJECT_NAME
 
+# Retries a command, backing off exponentially.
+#
+# This exists for one reason: a freshly uploaded release takes time to appear
+# on the index it was just accepted by. The previous budget of three retries
+# 5s apart gave up after ~30s of waiting and failed a release that had in fact
+# published correctly, so the delays now grow to cover several minutes.
 retry() {
-    MAX_ATTEMPTS=4
+    # One attempt plus five retries: 15s, 30s, 60s, 120s, 240s (~7.75 min).
+    MAX_ATTEMPTS=6
     count=0
-    base=5
+    base=15
     local command="$*"
     while [ "$count" -lt "$MAX_ATTEMPTS" ]; do
         count=$((count + 1))
@@ -31,8 +38,8 @@ retry() {
         fi
 
         echo
-        echo "Retring ($count/$((MAX_ATTEMPTS - 1)))..."
-        delay=$((base * count))
+        echo "Retrying ($count/$((MAX_ATTEMPTS - 1)))..."
+        delay=$((base * 2 ** (count - 1)))
         echo "Sleeping for $delay seconds before retrying..."
         sleep "$delay"
     done
