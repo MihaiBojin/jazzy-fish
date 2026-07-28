@@ -48,9 +48,9 @@ dev = [
 ]
 
 [project.urls]
-"Bug reports" = "https://github.com/jazzy-fish/jazzy-fish/issues/new"
-"Documentation" = "https://github.com/jazzy-fish/jazzy-fish/blob/main/python/README.md"
-"Source" = "https://github.com/jazzy-fish/jazzy-fish"
+"Bug reports" = "https://github.com/MihaiBojin/jazzy-fish/issues/new"
+"Documentation" = "https://github.com/MihaiBojin/jazzy-fish/blob/main/python/README.md"
+"Source" = "https://github.com/MihaiBojin/jazzy-fish"
 
 [project.scripts]
 clean-dictionary = "jazzy_fish_tools.clean_dictionary:main"

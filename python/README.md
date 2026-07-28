@@ -1,12 +1,12 @@
 # Jazzy Fish - Sufficiently-large, unique, human-friendly identifiers
 
-![Build Status](https://github.com/jazzy-fish/jazzy-fish/actions/workflows/python-tests.yml/badge.svg)
+![Build Status](https://github.com/MihaiBojin/jazzy-fish/actions/workflows/python-tests.yml/badge.svg)
 [![PyPI version](https://badge.fury.io/py/jazzy-fish.svg)](https://badge.fury.io/py/jazzy-fish)
 [![Python Versions](https://img.shields.io/pypi/pyversions/jazzy-fish.svg)](https://pypi.org/project/jazzy-fish/)
-[![License](https://img.shields.io/github/license/jazzy-fish/jazzy-fish.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/MihaiBojin/jazzy-fish.svg)](LICENSE)
 
 > ⚠️ **Warning:** This library is **in development** and not yet ready for production. Its API is not yet stable
-> and might (and probably _will_) still change. Follow repository [issues](https://github.com/jazzy-fish/jazzy-fish/issues) for more information.
+> and might (and probably _will_) still change. Follow repository [issues](https://github.com/MihaiBojin/jazzy-fish/issues) for more information.
 
 Jazzy Fish is a library that helps you generate a sufficient number of identifiers, with a human-friendly kick.
 
@@ -43,7 +43,7 @@ Install it via:
 pip install jazzy-fish
 
 # or alternatively, directly from git
-pip install "git+https://github.com/jazzy-fish/jazzy-fish@main#subdirectory=python"
+pip install "git+https://github.com/MihaiBojin/jazzy-fish@main#subdirectory=python"
 ```
 
 The implementation roughly works as follows:
@@ -131,11 +131,17 @@ git tag v0.1.x
 git push origin v0.1.x
 ```
 
-A [GitHub Action](https://github.com/jazzy-fish/jazzy-fish/actions) will run, build the library and publish it to the PyPI repositories.
+A [GitHub Action](https://github.com/MihaiBojin/jazzy-fish/actions) will run, build the library and publish it to the PyPI repositories.
+
+The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trusted-publishers/), so it
+holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived
+upload token, which requires `id-token: write` on the publishing job and a trusted publisher registered
+on **both** indexes, pointing at `python-publish.yml` in this repository.
 
 #### Manual
 
-These steps can also be performed locally. For these commands to work, you will need to export two environment variables:
+These steps can also be performed locally. Trusted Publishing only works from CI, so publishing by hand
+still needs tokens:
 
 ```shell
 export TESTPYPI_PASSWORD=... # token for https://test.pypi.org/legacy/
