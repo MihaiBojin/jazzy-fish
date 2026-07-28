@@ -16,14 +16,13 @@ authors = [
 ]
 version = "0.3.3"
 dependencies = []
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -33,10 +32,8 @@ classifiers = [
 cli = [
     # keep-sorted start
     "duckdb==1.5.5",
-    # duckdb requires numpy to register the Python UDFs used by generate-wordlists.
-    # Held at 2.4.x: numpy 2.5 requires Python >=3.12, which would silently drop
-    # the cli extra on the 3.11 this project supports.
-    "numpy==2.4.6",
+    # duckdb requires numpy to register the Python UDFs used by generate-wordlists
+    "numpy==2.5.1",
     # keep-sorted end
 ]
 dev = [
