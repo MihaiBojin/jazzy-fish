@@ -56,9 +56,9 @@ jobs:
           python-version: "3.14"
           enable-cache: true
 
-      - name: Set the correct (tag) version
+      - name: Check the tag matches the project version
         working-directory: python
-        run: scripts/detect-and-set-tag-version.bash
+        run: scripts/check-tag-version.bash
 
       - name: Build
         working-directory: python
