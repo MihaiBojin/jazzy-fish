@@ -4,11 +4,14 @@ set -ueo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly DIR
 
-VERSION="$(cat "$DIR"/../VERSION)"
+# shellcheck disable=SC1091
+source "$DIR/functions.bash"
+
+# Load name and version from the project manifest
+VERSION="$(get_project_version)"
 readonly VERSION
 
-# Load project name from project manifest
-PROJECT_NAME="$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('$DIR/../pyproject.toml','rb'))['project']['name'])")"
+PROJECT_NAME="$(get_project_name)"
 readonly PROJECT_NAME
 
 retry() {

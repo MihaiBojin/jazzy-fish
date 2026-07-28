@@ -123,13 +123,22 @@ Unless you are interested in contributing to this code (or are curious about thi
 
 #### GitHub-based version publishing
 
-The simplest way to publish a new version (if you have committer rights) is to tag a commit and push it to the repo:
+The version lives in `version` under `[project]` in `pyproject.toml`. Bump it in a pull request, then
+tag the merged commit:
 
 ```shell
-# At a certain commit, ideally after merging a PR to main
+# 1. In a PR: set the new version and refresh the lock file
+#    (uv.lock records the project version, so CI's `uv sync --locked` fails without this)
+uv lock
+
+# 2. After merging, tag that commit and push
 git tag v0.1.x
 git push origin v0.1.x
 ```
+
+The tag must match the version in `pyproject.toml`. The workflow runs `scripts/check-tag-version.bash`
+before building and refuses to publish on a mismatch, so a forgotten bump fails the release rather than
+publishing the previous version again.
 
 A [GitHub Action](https://github.com/MihaiBojin/jazzy-fish/actions) will run, build the library and publish it to the PyPI repositories.
 
@@ -151,23 +160,26 @@ export PYPI_PASSWORD=... # token for https://upload.pypi.org/legacy/
 The `Makefile` passes these to `uv publish` as `UV_PUBLISH_TOKEN`; the test index is defined as
 `testpypi` under `[[tool.uv.index]]` in `pyproject.toml`.
 
-First, publish to the test repo and inspect the package:
+Every target below publishes the version currently in `pyproject.toml`, so set it there first. Note that
+**uploads are irreversible**: a version number can never be reused, even after deleting a release.
+
+First, publish to the test repo, then inspect and verify it:
 
 ```shell
 make publish-test
+make build-inspect        # lists the wheel and archive contents
+make publish-test-verify  # installs from test.PyPI into a throwaway venv
 ```
 
-If correct, distribute the wheel to the PyPI index:
+If correct, distribute the wheel to the PyPI index and verify it:
 
 ```shell
 make publish
-```
-
-Verify the distributed code
-
-```shell
 make publish-verify
 ```
+
+Unlike the tagged release, this path runs no linters or tests, and nothing checks the version against a
+tag. Prefer tagging; reach for this only when the workflow cannot run.
 
 ### Generate wordlists
 
