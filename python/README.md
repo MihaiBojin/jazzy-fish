@@ -123,24 +123,29 @@ Unless you are interested in contributing to this code (or are curious about thi
 
 #### GitHub-based version publishing
 
-The version lives in `version` under `[project]` in `pyproject.toml`. Bump it in a pull request, then
-tag the merged commit:
+Releasing is merging a version bump. Nothing is tagged or published by hand.
 
 ```shell
-# 1. In a PR: set the new version and refresh the lock file
-#    (uv.lock records the project version, so CI's `uv sync --locked` fails without this)
+# In a release branch: set the new version and refresh the lock file
+#   (uv.lock records the project version, so CI's `uv sync --locked` fails without this)
 uv lock
-
-# 2. After merging, tag that commit and push
-git tag v0.1.x
-git push origin v0.1.x
 ```
 
-The tag must match the version in `pyproject.toml`. The workflow runs `scripts/check-tag-version.bash`
-before building and refuses to publish on a mismatch, so a forgotten bump fails the release rather than
-publishing the previous version again.
+Open a pull request with that change. Once it merges, `tag-release.yml` reads `version` from
+`pyproject.toml` and, if no matching tag exists yet, tags the merge commit `v<version>` and starts the
+publish workflow against it.
 
-A [GitHub Action](https://github.com/MihaiBojin/jazzy-fish/actions) will run, build the library and publish it to the PyPI repositories.
+Pushes to `main` that do not change the version find their tag already present and do nothing, so the
+workflow is a no-op except on a release.
+
+A tag pushed by a workflow does not raise a `push` event -- GitHub suppresses events made with
+`GITHUB_TOKEN` so workflows cannot trigger themselves. `tag-release.yml` therefore starts
+`python-publish.yml` through `workflow_dispatch`, which is exempt from that rule, so no long-lived
+personal access token is needed. Pushing a `v0.*` tag by hand still works and takes the ordinary
+`push` path.
+
+`python-publish.yml` runs `scripts/check-tag-version.bash` before building, and refuses to publish if
+the tag and `pyproject.toml` disagree.
 
 The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trusted-publishers/), so it
 holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived

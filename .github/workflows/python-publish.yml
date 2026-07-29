@@ -5,6 +5,10 @@ on:
   push:
     tags:
       - "v0.*"
+  # How tag-release.yml starts this workflow: a tag it pushes with GITHUB_TOKEN
+  # does not raise a push event, but workflow_dispatch is exempt from that rule.
+  # Run it against a tag ref, not a branch.
+  workflow_dispatch:
 
 jobs:
   lint-test:
@@ -49,6 +53,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          # check-tag-version.bash reads the tags at HEAD, which a default
+          # checkout does not fetch when dispatched rather than pushed.
+          fetch-tags: true
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v9.0.0
