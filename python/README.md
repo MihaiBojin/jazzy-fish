@@ -1,6 +1,6 @@
 # Jazzy Fish - Sufficiently-large, unique, human-friendly identifiers
 
-![Build Status](https://github.com/MihaiBojin/jazzy-fish/actions/workflows/python-tests.yml/badge.svg)
+![Build Status](https://github.com/MihaiBojin/jazzy-fish/actions/workflows/cicd.yml/badge.svg)
 [![PyPI version](https://badge.fury.io/py/jazzy-fish.svg)](https://badge.fury.io/py/jazzy-fish)
 [![Python Versions](https://img.shields.io/pypi/pyversions/jazzy-fish.svg)](https://pypi.org/project/jazzy-fish/)
 [![License](https://img.shields.io/github/license/MihaiBojin/jazzy-fish.svg)](LICENSE)
@@ -131,7 +131,7 @@ Releasing is merging a version bump. Nothing is tagged or published by hand.
 uv lock
 ```
 
-Open a pull request with that change. Merging it runs `python-publish.yml`, a single pipeline of three
+Open a pull request with that change. Merging it runs `cicd.yml`, a single pipeline of three
 jobs:
 
 1. **`lint-test`** -- linters and tests across every supported Python version.
@@ -153,12 +153,12 @@ long-lived personal access token or a `workflow_dispatch` hop. Job dependencies 
 ordering with none of that.
 
 Note the filename is load-bearing: PyPI and test.PyPI each register a trusted publisher against
-`python-publish.yml`, and OIDC uploads stop working the moment it disagrees.
+`cicd.yml`, and OIDC uploads stop working the moment it disagrees.
 
 The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trusted-publishers/), so it
 holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived
 upload token, which requires `id-token: write` on the publishing job and a trusted publisher registered
-on **both** indexes, pointing at `python-publish.yml` in this repository.
+on **both** indexes, pointing at `cicd.yml` in this repository.
 
 #### Manual
 
