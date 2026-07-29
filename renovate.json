@@ -4,5 +4,6 @@
     "github>MihaiBojin/renovate",
     "github>MihaiBojin/renovate:group-github-actions",
     "github>MihaiBojin/renovate:pre-commit"
-  ]
+  ],
+  "constraintsFiltering": "strict"
 }
