@@ -3,9 +3,10 @@
 # job dependencies rather than one workflow observing another.
 #
 # The filename is load-bearing and cannot be changed casually: PyPI and
-# test.PyPI each register a trusted publisher against 'python-publish.yml', and
-# OIDC uploads stop working the moment it disagrees.
-name: Python CI
+# test.PyPI each register a trusted publisher against 'cicd.yml', and OIDC
+# uploads stop working the moment it disagrees. Renaming means registering the
+# new name on both indexes first.
+name: CI/CD
 
 on:
   # Test pull requests; tag and publish are skipped
