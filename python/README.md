@@ -131,7 +131,7 @@ Releasing is merging a version bump. Nothing is tagged or published by hand.
 uv lock
 ```
 
-Open a pull request with that change. Merging it runs `cicd.yml`, a single pipeline of three
+Open a pull request with that change. Merging it runs `cicd.yml`, a single pipeline of four
 jobs:
 
 1. **`lint-test`** -- linters and tests across every supported Python version.
@@ -139,6 +139,9 @@ jobs:
    already exists. It needs `lint-test`, so nothing is tagged until the tests pass: a bad tag is far
    more awkward to retract than a failed build is to fix.
 3. **`publish`** -- builds the tag and uploads it to test.PyPI and PyPI.
+4. **`github-release`** -- turns the tag into a [release](https://github.com/MihaiBojin/jazzy-fish/releases),
+   with notes generated from the pull requests merged since the previous one. The notes are only as
+   informative as the pull request titles they are built from.
 
 Merges that do not change the version find their tag already present, and `publish` is skipped. Pull
 requests run `lint-test` only.

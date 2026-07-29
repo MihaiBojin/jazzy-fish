@@ -143,3 +143,32 @@ jobs:
       - name: Verify package install from PyPI
         working-directory: python
         run: scripts/verify-publish.bash --prod
+
+  # Publishing to PyPI leaves the GitHub side of a release bare: a tag and
+  # nothing else. This turns each tag into a release whose notes are built from
+  # the pull requests merged since the previous one, so what changed between two
+  # versions is visible without reading the commit log.
+  #
+  # A separate job to keep 'publish' scoped to 'contents: read'; writing a
+  # release needs 'contents: write'.
+  github-release:
+    needs: [tag, publish]
+    # Redundant with the skipped 'publish' it depends on, but stated so the
+    # condition for running is readable in one place
+    if: needs.tag.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # No checkout: gh talks to the API, and GH_REPO tells it which repository.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.tag.outputs.tag }}
+        # --verify-tag refuses to invent a tag that is not on the remote, so a
+        # half-finished release cannot leave a release pointing at nothing.
+        run: |
+          gh release create "$TAG" --generate-notes --verify-tag
+          echo "Created release $TAG" >>"$GITHUB_STEP_SUMMARY"
