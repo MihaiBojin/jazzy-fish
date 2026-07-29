@@ -1,14 +1,21 @@
-name: Publish to PyPI
+# The whole main pipeline: test, then tag a merged version bump, then publish
+# that tag. One workflow rather than three chained together, so the ordering is
+# job dependencies rather than one workflow observing another.
+#
+# The filename is load-bearing and cannot be changed casually: PyPI and
+# test.PyPI each register a trusted publisher against 'python-publish.yml', and
+# OIDC uploads stop working the moment it disagrees.
+name: Python CI
 
 on:
-  # Trigger only on v0.* tag pushes
+  # Test pull requests; tag and publish are skipped
+  pull_request:
+    branches:
+      - main
+  # Test, and release when the version has changed
   push:
-    tags:
-      - "v0.*"
-  # How tag-release.yml starts this workflow: a tag it pushes with GITHUB_TOKEN
-  # does not raise a push event, but workflow_dispatch is exempt from that rule.
-  # Run it against a tag ref, not a branch.
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   lint-test:
@@ -41,8 +48,51 @@ jobs:
         working-directory: python
         run: uv run pytest tests
 
-  publish:
+  # Tags the commit when pyproject.toml names a version that has no tag yet.
+  # 'needs: lint-test' is the point: a tag is far more awkward to retract than
+  # a failed build is to fix, so nothing is tagged until the tests pass.
+  tag:
     needs: lint-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      # Push the tag
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag the release
+        id: tag
+        working-directory: python
+        run: echo "tag=$(scripts/tag-release.bash)" >>"$GITHUB_OUTPUT"
+
+      - name: Report
+        run: |
+          if [ -n "${{ steps.tag.outputs.tag }}" ]; then
+            echo "Tagged ${{ steps.tag.outputs.tag }}" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "No version change; nothing to release." >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+  publish:
+    needs: tag
+    # Empty when the version was already tagged, i.e. an ordinary merge
+    if: needs.tag.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       # Mints the OIDC token that PyPI exchanges for a short-lived upload
@@ -50,12 +100,14 @@ jobs:
       # has to be restated for the checkout.
       id-token: write
       contents: read
+
     steps:
-      - name: Checkout code
+      - name: Checkout the tag
         uses: actions/checkout@v7
         with:
-          # check-tag-version.bash reads the tags at HEAD, which a default
-          # checkout does not fetch when dispatched rather than pushed.
+          ref: ${{ needs.tag.outputs.tag }}
+          # check-tag-version.bash reads the tags at HEAD, which a checkout of
+          # a ref does not fetch on its own
           fetch-tags: true
 
       - name: Set up uv

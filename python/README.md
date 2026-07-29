@@ -131,21 +131,29 @@ Releasing is merging a version bump. Nothing is tagged or published by hand.
 uv lock
 ```
 
-Open a pull request with that change. Once it merges, `tag-release.yml` reads `version` from
-`pyproject.toml` and, if no matching tag exists yet, tags the merge commit `v<version>` and starts the
-publish workflow against it.
+Open a pull request with that change. Merging it runs `python-publish.yml`, a single pipeline of three
+jobs:
 
-Pushes to `main` that do not change the version find their tag already present and do nothing, so the
-workflow is a no-op except on a release.
+1. **`lint-test`** -- linters and tests across every supported Python version.
+2. **`tag`** -- reads `version` from `pyproject.toml` and tags the commit `v<version>`, unless that tag
+   already exists. It needs `lint-test`, so nothing is tagged until the tests pass: a bad tag is far
+   more awkward to retract than a failed build is to fix.
+3. **`publish`** -- builds the tag and uploads it to test.PyPI and PyPI.
 
-A tag pushed by a workflow does not raise a `push` event -- GitHub suppresses events made with
-`GITHUB_TOKEN` so workflows cannot trigger themselves. `tag-release.yml` therefore starts
-`python-publish.yml` through `workflow_dispatch`, which is exempt from that rule, so no long-lived
-personal access token is needed. Pushing a `v0.*` tag by hand still works and takes the ordinary
-`push` path.
+Merges that do not change the version find their tag already present, and `publish` is skipped. Pull
+requests run `lint-test` only.
 
-`python-publish.yml` runs `scripts/check-tag-version.bash` before building, and refuses to publish if
-the tag and `pyproject.toml` disagree.
+`publish` re-runs `scripts/check-tag-version.bash` before building and refuses to publish if the tag
+and `pyproject.toml` disagree.
+
+The three steps live in one workflow deliberately. Splitting them meant a workflow pushing a tag and
+another watching for it, which does not work directly: GitHub suppresses events made with
+`GITHUB_TOKEN`, so a pushed tag raises no `push` event, and bridging that gap needs either a
+long-lived personal access token or a `workflow_dispatch` hop. Job dependencies express the same
+ordering with none of that.
+
+Note the filename is load-bearing: PyPI and test.PyPI each register a trusted publisher against
+`python-publish.yml`, and OIDC uploads stop working the moment it disagrees.
 
 The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trusted-publishers/), so it
 holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived
