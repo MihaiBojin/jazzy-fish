@@ -52,11 +52,13 @@ Usage:
     got2 = encoder.decode_abbr(encoded.abbr)
 """
 
-from .encoder import KeyPhrase, WordEncoder, Wordlist, check_capacity
-from .generator import Generator, Resolution, ThreadSafeGenerator
+from .encoder import EncoderException, KeyPhrase, WordEncoder, Wordlist, check_capacity
+from .generator import Generator, GeneratorException, Resolution, ThreadSafeGenerator
 
 __all__ = [
+    "EncoderException",
     "Generator",
+    "GeneratorException",
     "KeyPhrase",
     "Resolution",
     "ThreadSafeGenerator",
