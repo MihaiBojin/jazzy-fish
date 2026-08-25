@@ -43,8 +43,40 @@ The implementation roughly works as follows:
 - call `generator.next_id()`, which returns a unique integer value; values increase over time
   for a single configured machine id, but interleaving several machine ids means consecutive
   calls are not ordered
-- call `Encoder.encode(id)`, which returns a `keyphrase`
-- decode a _Keyphrase_ into its integer from by calling `Encoder.decode(keyphrase)`
+- call `encoder.encode(id)`, which returns a `KeyPhrase` with all three text forms
+- call `encoder.decode(text)` to decode any text form to its integer
+
+## Identifier forms
+
+`Generator.next_id()` produces the integer. `WordEncoder.encode(id)` returns a
+`KeyPhrase` containing that integer and all three text forms. For `1234567` with
+wordlist `012_80a1774`:
+
+| Field | Value | Checks the wordlist tag when decoded |
+| ----- | ----- | ----------------------------------- |
+| `keyphrase` | `abjectly-abashed-moodier-gopher` | No |
+| `abbr` | `abj-aba-moo-gop` | No |
+| `verified_abbr` | `abj-aba-moo-gopmj` | Yes |
+
+`encoder.decode(text)` accepts every form in the table.
+`encoder.decode_abbr(text)` accepts either abbreviation form. A supplied tag must
+match the configured wordlist; decoding rejects a mismatched tag.
+
+The two trailing base-36 characters derive from the full wordlist name. They are
+constant for that wordlist, so they do not check the identifier for typos. There
+are 1,296 possible tags, so different wordlists can share one. Persist
+`encoder.wordlist_name` alongside stored identifiers to select the correct
+wordlist when decoding.
+
+Full words contain no wordlist tag. For example,
+`abjectly-abashed-abased-abbess` decodes to `2` under `012_80a1774` and `4` under
+`024_e4d0f5e`. Both the keyphrase and the plain abbreviation rely on the caller
+selecting the correct wordlist. If a custom wordlist makes a full phrase also
+look like an abbreviation, `decode()` gives the full phrase precedence; use
+`decode_abbr()` when the input is known to be an abbreviation.
+
+`KeyPhrase` has four tuple fields in order: `id`, `abbr`, `keyphrase`, and
+`verified_abbr`. Positional construction and unpacking require all four fields.
 
 ## Configuring a Generator
 

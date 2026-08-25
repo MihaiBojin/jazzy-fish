@@ -48,8 +48,10 @@ Usage:
     # Decode a keyphrase
     got = encoder.decode(encoded.keyphrase)
 
-    # Decode an abbreviation
-    got2 = encoder.decode_abbr(encoded.abbr)
+    # Decode either abbreviation form.
+    got2 = encoder.decode(encoded.abbr)
+    got3 = encoder.decode(encoded.verified_abbr)
+    assert got == got2 == got3 == id
 """
 
 from .encoder import EncoderException, KeyPhrase, WordEncoder, Wordlist, check_capacity

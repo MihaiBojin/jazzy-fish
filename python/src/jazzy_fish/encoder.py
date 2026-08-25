@@ -59,6 +59,8 @@ class Wordlist:
                 f"Dictionary name must contain the identifying positions for word abbreviations, got: '{name_parts[0]}'"
             )
 
+        self.name = name
+        self.tag = _wordlist_tag(name)
         self.word_order = list(word_order) if word_order else None
         self._abbr_positions = name_parts[0]
         self._abbr_char_positions = [int(c) for c in name_parts[0]]
@@ -206,11 +208,12 @@ class Wordlist:
 
 
 class KeyPhrase(NamedTuple):
-    """Represents a unique key phrase, along with its abbreviated form, and original integer value."""
+    """An integer with its keyphrase, plain abbreviation, and tagged abbreviation."""
 
     id: int
     abbr: str
     keyphrase: str
+    verified_abbr: str
 
 
 class EncoderException(Exception):
@@ -326,14 +329,22 @@ class WordEncoder:
         abbr = self.separator.join(short_sequence)
         keyphrase = self.separator.join(selected_words)
 
-        return KeyPhrase(abbr=abbr, keyphrase=keyphrase, id=original_val)
+        return KeyPhrase(
+            abbr=abbr,
+            keyphrase=keyphrase,
+            id=original_val,
+            verified_abbr=abbr + self._wordlist.tag,
+        )
 
     def decode(self, keyphrase: str) -> int:
         """
-        Decodes a keyphrase to an integer.
+        Decodes a keyphrase or either abbreviation form to an integer.
+
+        Only tagged abbreviations check the wordlist tag. Full words take
+        precedence when a custom wordlist also permits an abbreviation reading.
 
         Parameters:
-            keyphrase (str): The keyphrase to decode.
+            keyphrase (str): The keyphrase or abbreviation to decode.
 
         Returns:
             int: The corresponding integer.
@@ -341,20 +352,30 @@ class WordEncoder:
 
         words = keyphrase.split(self.separator)
         seq_length = len(words)
-        if seq_length > self._max_phrase_size:
-            raise EncoderException(
-                f"The sequence contains more words that can be decoded with up to {self._max_phrase_size} words"
-            )
-        if seq_length < self._min_phrase_size:
-            raise EncoderException(
-                f"The phrase contains {seq_length} word(s), but this encoder never emits fewer than {self._min_phrase_size}"
-            )
+        try:
+            if seq_length > self._max_phrase_size:
+                raise EncoderException(
+                    f"The sequence contains more words than can be decoded with up to {self._max_phrase_size} words"
+                )
+            if seq_length < self._min_phrase_size:
+                raise EncoderException(
+                    f"The phrase contains {seq_length} word(s), but this encoder never emits fewer than {self._min_phrase_size}"
+                )
 
-        return self._to_int(words, self._wordlist._word_positions, "word")
+            return self._to_int(words, self._wordlist._word_positions, "word")
+        except EncoderException:
+            if self._is_abbreviation(keyphrase) or self._is_abbreviation(
+                keyphrase[:-_TAG_LENGTH]
+            ):
+                return self.decode_abbr(keyphrase)
+            raise
 
     def decode_abbr(self, abbr: str) -> int:
         """
-        Decodes an abbreviation to an integer.
+        Decodes a plain or tagged abbreviation to an integer.
+
+        A supplied tag must match this wordlist. Untagged input relies on the
+        caller choosing the correct wordlist.
 
         Parameters:
             abbr (str): The keyphrase abbreviation to decode.
@@ -362,6 +383,16 @@ class WordEncoder:
         Returns:
             int: The corresponding integer.
         """
+
+        if not self._is_abbreviation(abbr) and self._is_abbreviation(
+            abbr[:-_TAG_LENGTH]
+        ):
+            if abbr[-_TAG_LENGTH:] != self._wordlist.tag:
+                raise EncoderException(
+                    f"The abbreviation '{abbr}' has a wordlist tag that does not match '{self.wordlist_name}' "
+                    f"(expected '{self._wordlist.tag}')"
+                )
+            abbr = abbr[:-_TAG_LENGTH]
 
         word_abbrs = abbr.split(self.separator)
         seq_length = len(word_abbrs)
@@ -375,6 +406,19 @@ class WordEncoder:
             )
 
         return self._to_int(word_abbrs, self._wordlist._abbr_to_pos, "abbreviation")
+
+    def _is_abbreviation(self, value: str) -> bool:
+        """Checks whether every part is a known abbreviation at its position."""
+        parts = value.split(self.separator)
+        if not self._min_phrase_size <= len(parts) <= self._max_phrase_size:
+            return False
+        positions = self._wordlist._abbr_to_pos[-len(parts) :]
+        return all(part in position for part, position in zip(parts, positions))
+
+    @property
+    def wordlist_name(self) -> str:
+        """The wordlist name to persist alongside identifiers."""
+        return self._wordlist.name
 
     def _to_int(
         self, parts: List[str], positions: List[Dict[str, int]], what: str
@@ -484,6 +528,22 @@ def _read_words(from_path: str, package_name: Optional[str] = None) -> List[str]
     with open(data_path, "r", encoding="utf-8") as file:
         data = [ln.strip() for ln in file]
     return data
+
+
+_TAG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+_TAG_LENGTH = 2
+
+
+def _wordlist_tag(name: str) -> str:
+    """Derives a two-character base-36 tag from the full wordlist name."""
+    value = int.from_bytes(
+        hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).digest()[:8], "big"
+    )
+    tag = ""
+    for _ in range(_TAG_LENGTH):
+        value, remainder = divmod(value, len(_TAG_ALPHABET))
+        tag = _TAG_ALPHABET[remainder] + tag
+    return tag
 
 
 def aggregate_checksums(checksums: List[str]) -> str:
