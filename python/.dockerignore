@@ -4,7 +4,10 @@
 # keep-sorted start
 **/*.egg-info
 **/__pycache__
+.dockerignore
+.env
 .mypy_cache
+.pypirc
 .pytest_cache
 .ruff_cache
 .venv

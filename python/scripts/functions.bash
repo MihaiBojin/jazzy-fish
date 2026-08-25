@@ -33,12 +33,28 @@ get_tag_at_head() {
 # Extracts the project name as configured in 'pyproject.toml'
 # '--no-project' keeps this usable before the environment has been synced.
 get_project_name() {
+    local dir
     dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
     uv run --no-project python -c "import tomllib; print(tomllib.load(open('$dir/../pyproject.toml','rb'))['project']['name'])"
 }
 
 # Extracts the project version as configured in 'pyproject.toml'
 get_project_version() {
+    local dir
     dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
     uv run --no-project python -c "import tomllib; print(tomllib.load(open('$dir/../pyproject.toml','rb'))['project']['version'])"
+}
+
+# Names the image: the tag at HEAD when the working directory is clean,
+# otherwise the short SHA (with a -dirty suffix).
+get_image_tag() {
+    if [ -z "$(is_dirty)" ]; then
+        local gittag
+        gittag="$(get_tag_at_head)"
+        if [ -n "$gittag" ]; then
+            echo "$gittag"
+            return
+        fi
+    fi
+    get_git_sha
 }

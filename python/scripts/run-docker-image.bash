@@ -8,24 +8,19 @@ readonly DIR
 source "$DIR/functions.bash"
 
 # Retrieve current git sha
-TAG="$(get_git_sha)"
-if [ -z "$(is_dirty)" ]; then
-    # Working dir is clean, attempt to use tag
-    GITTAG="$(get_tag_at_head)"
-
-    # If git tag found, use it
-    if [ -n "$GITTAG" ]; then
-        TAG="$GITTAG"
-    fi
-fi
+TAG="$(get_image_tag)"
 readonly TAG
 
 # Load project name from project manifest
 PROJECT_NAME="$(get_project_name)"
 readonly PROJECT_NAME
 
-# Run the image
+# Run the image.
+#
+# Deliberately not --env-file .env: that file is what 'make setup' creates and
+# what the publishing docs prime you to fill with PyPI tokens, and the entrypoint
+# is a wordlist generator that needs none of them. Pass what the container
+# actually needs with -e.
 docker run \
-    --env-file .env \
     -it "$PROJECT_NAME:$TAG" \
     "$@"

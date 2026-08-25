@@ -11,9 +11,9 @@ venv:
 clean: clean-venv
 	@echo Cleaning up builds and caches...
 	@rm -rf {out,dist,build,.mypy_cache,.ruff_cache}
-	@find . -type d -path ./.venv -prune -o -name ".pytest_cache" -exec rm -rf {} \;
-	@find . -type d -path ./.venv -prune -o -name "__pycache__" -exec rm -rf {} \;
-	@find . -type d -path ./.venv -prune -o -name "*.egg-info" -exec rm -rf {} \;
+	@find . -type d -path ./.venv -prune -o -name ".pytest_cache" -prune -exec rm -rf {} +
+	@find . -type d -path ./.venv -prune -o -name "__pycache__" -prune -exec rm -rf {} +
+	@find . -type d -path ./.venv -prune -o -name "*.egg-info" -prune -exec rm -rf {} +
 
 .PHONY: clean-venv
 clean-venv:
@@ -80,7 +80,7 @@ docker-run:
 .PHONY: publish-test
 publish-test: build
 	@echo "Publishing to test repo..."
-	@UV_PUBLISH_TOKEN=$(TESTPYPI_PASSWORD) uv publish --index testpypi
+	@UV_PUBLISH_TOKEN="$$TESTPYPI_PASSWORD" uv publish --index testpypi
 
 .PHONY: publish-test-verify
 publish-test-verify:
@@ -90,13 +90,14 @@ publish-test-verify:
 .PHONY: publish
 publish: build
 	@echo "Publishing to PyPI..."
-	@UV_PUBLISH_TOKEN=$(PYPI_PASSWORD) uv publish
+	@UV_PUBLISH_TOKEN="$$PYPI_PASSWORD" uv publish
 
 .PHONY: publish-verify
 publish-verify:
 	@echo "Verifying PyPI package..."
 	@scripts/verify-publish.bash --prod
 
+.PHONY: show-stats
 show-stats:
 	@echo "Showing statistics for generated wordlists (out/processed)..."
 	@scripts/show-stats.bash
