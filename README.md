@@ -101,9 +101,9 @@ millisecond resolution:
 
 | wordlist | bits available | generation ceiling |
 | -------- | -------------- | ------------------ |
-| `012_8562fb9` (default) | 1 | 2,000 IDs/second |
-| `024_84f184f` | 4 | 16,000 IDs/second |
-| `01234_f233650` | 6 | 64,000 IDs/second |
+| `012_80a1774` (default) | 1 | 2,000 IDs/second |
+| `024_e4d0f5e` | 4 | 16,000 IDs/second |
+| `01234_011cf27` | 6 | 64,000 IDs/second |
 
 If the default wordlists are unsuitable, they can be changed. Consult the [Generate wordlists](#generate-wordlists) section for details.
 
@@ -188,9 +188,9 @@ appropriate values for your use-case.
 
 By default, jazzy-fish ships with the following wordlists:
 
-- [012_8562fb9](python/src/jazzy_fish/resources/012_8562fb9)
-- [024_84f184f](python/src/jazzy_fish/resources/024_84f184f)
-- [01234_f233650](python/src/jazzy_fish/resources/01234_f233650)
+- [012_80a1774](python/src/jazzy_fish/resources/012_80a1774)
+- [024_e4d0f5e](python/src/jazzy_fish/resources/024_e4d0f5e)
+- [01234_011cf27](python/src/jazzy_fish/resources/01234_011cf27)
 
 #### N-per-second generation
 

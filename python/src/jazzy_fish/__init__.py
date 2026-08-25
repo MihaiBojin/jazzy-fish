@@ -23,7 +23,7 @@ Usage:
     epoch = datetime(2024, 5, 30, tzinfo=timezone.utc).timestamp()
 
     # Configure the encoder using one of the default wordlists provided by jazzy-fish
-    wordlist = Wordlist.load("resources/012_8562fb9", "jazzy_fish.encoder")
+    wordlist = Wordlist.load("resources/012_80a1774", "jazzy_fish.encoder")
     encoder = WordEncoder(wordlist, min_phrase_size=4)
 
     # Configure the generator (single machine, max one value per time unit, millisecond resolution).
@@ -32,7 +32,7 @@ Usage:
     # long the identifiers stay encodable. With this wordlist and epoch, the budget
     # over a ten-year horizon is one bit in total; sequence_bits=0 caps generation
     # at 1,000 IDs per second. For more throughput use a larger wordlist --
-    # 01234_f233650 affords six bits, i.e. 64,000 IDs per second.
+    # 01234_011cf27 affords six bits, i.e. 64,000 IDs per second.
     generator = Generator(
         epoch=epoch,        # Define the epoch
         machine_ids=[0],    # Configure the machine id (partition)
