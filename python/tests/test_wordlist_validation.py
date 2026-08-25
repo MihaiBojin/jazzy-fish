@@ -6,7 +6,7 @@ from jazzy_fish.encoder import Wordlist
 class TestWordlistValidation(unittest.TestCase):
     ADVERBS = ["absurdly", "busily", "capably"]
 
-    def _build(self, name, nouns):
+    def _build(self, name: str, nouns: list) -> Wordlist:
         return Wordlist(name, [self.ADVERBS, nouns], verify_checksum=False)
 
     def test_rejects_duplicate_words(self):
@@ -40,7 +40,9 @@ class TestWordlistValidation(unittest.TestCase):
     def test_accepts_abbreviation_position_nine(self):
         # The check read '"0" <= c < "9"', so position 9 was rejected.
         long_words = ["abcdefghij", "klmnopqrst"]
-        self.assertIsNotNone(Wordlist("9_NOVERIFY", [long_words], verify_checksum=False))
+        self.assertIsNotNone(
+            Wordlist("9_NOVERIFY", [long_words], verify_checksum=False)
+        )
 
     def test_shipped_wordlists_still_validate(self):
         for name in ("012_80a1774", "024_e4d0f5e", "01234_011cf27"):
