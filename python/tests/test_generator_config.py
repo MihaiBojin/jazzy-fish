@@ -14,7 +14,7 @@ def _generator(**overrides: object) -> Generator:
         "sequence_bits": 0,
     }
     kwargs.update(overrides)
-    return Generator(**kwargs)  # type: ignore[arg-type]
+    return Generator(**kwargs)
 
 
 class TestGeneratorConfiguration(unittest.TestCase):
