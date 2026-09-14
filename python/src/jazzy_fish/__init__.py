@@ -45,7 +45,7 @@ Usage:
     got2 = encoder.decode_abbr(encoded.abbr)
 """
 
-from .encoder import KeyPhrase, WordEncoder, Wordlist
+from .encoder import KeyPhrase, WordEncoder, Wordlist, check_capacity
 from .generator import Generator, Resolution, ThreadSafeGenerator
 
 __all__ = [
@@ -55,4 +55,5 @@ __all__ = [
     "ThreadSafeGenerator",
     "WordEncoder",
     "Wordlist",
+    "check_capacity",
 ]

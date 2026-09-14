@@ -155,6 +155,41 @@ class Generator:
             current_time = self._current_time()
         return current_time
 
+    def max_id_at(self, when: float) -> int:
+        """
+        Returns the largest identifier this generator could emit at the given time.
+
+        Parameters:
+            when (float): A UNIX timestamp, in seconds.
+
+        Returns:
+            int: The largest possible identifier at that moment.
+        """
+
+        time_units = (round(when * 1000) - self.epoch_millis) // self.resolution.value
+        identifier = time_units << (self.machine_id_bits + self.sequence_bits)
+        if self.machine_id_bits > 0:
+            identifier |= max(self.machine_ids) << self.sequence_bits
+        return identifier | self.max_sequence
+
+    def exhausts_at(self, capacity: int) -> float:
+        """
+        Returns when this generator outgrows an encoder of the given capacity.
+
+        Machine and sequence bits shift the time component left, so every bit
+        halves how long the identifiers stay encodable.
+
+        Parameters:
+            capacity (int): The exclusive upper bound of encodable values,
+                            i.e. WordEncoder.get_max().
+
+        Returns:
+            float: A UNIX timestamp, in seconds.
+        """
+
+        time_units = capacity >> (self.machine_id_bits + self.sequence_bits)
+        return (self.epoch_millis + time_units * self.resolution.value) / 1000
+
     def _next_machine_id(self) -> int:
         machine_id = self.machine_ids[self.current_machine_index]
         self.current_machine_index = (self.current_machine_index + 1) % len(
