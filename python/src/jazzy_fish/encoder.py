@@ -15,7 +15,7 @@ import hashlib
 from importlib import resources
 import io
 from pathlib import Path
-from typing import List, Optional, NamedTuple
+from typing import Dict, List, Optional, NamedTuple
 
 
 # Specifies a default order for constructed sentences.
@@ -272,18 +272,7 @@ class WordEncoder:
                 f"The sequence contains more words that can be decoded with up to {self._max_phrase_size} words"
             )
 
-        # Calculate the indices of each specified word
-        relevant_positions = self._wordlist._word_positions[-seq_length:]
-        indices = [relevant_positions[i][word] for i, word in enumerate(words)]
-
-        # Transform indexes into integers
-        result = 0
-        relevant_radices = self._radices[-seq_length:]
-        for i, index in enumerate(indices):
-            list_size = relevant_radices[i]
-            result = result * list_size + index
-
-        return result
+        return self._to_int(words, self._wordlist._word_positions, "word")
 
     def decode_abbr(self, abbr: str) -> int:
         """
@@ -297,22 +286,36 @@ class WordEncoder:
         """
 
         word_abbrs = abbr.split(self.separator)
-        if not len(word_abbrs):
+        if len(word_abbrs) > self._max_phrase_size:
             raise EncoderException(
-                f"The id ({abbr}) could not be split into words using the provided split character ({self.separator})"
+                f"The abbreviation contains more parts than can be decoded with up to {self._max_phrase_size} words"
             )
-        seq_length = len(word_abbrs)
 
-        # Calculate the indices of each specified word
-        relevant_prefixes = self._wordlist._abbr_to_pos[-seq_length:]
-        indices = [relevant_prefixes[i][prefix] for i, prefix in enumerate(word_abbrs)]
+        return self._to_int(word_abbrs, self._wordlist._abbr_to_pos, "abbreviation")
 
-        # Transform indexes into integers
-        result = 0
+    def _to_int(
+        self, parts: List[str], positions: List[Dict[str, int]], what: str
+    ) -> int:
+        """
+        Converts a list of words (or abbreviations) to the integer they encode.
+
+        The lists are mixed-radix digits, most significant first, so the value is
+        accumulated with Horner's method against the trailing radices.
+        """
+
+        seq_length = len(parts)
+        relevant_positions = positions[-seq_length:]
         relevant_radices = self._radices[-seq_length:]
-        for i, index in enumerate(indices):
-            list_size = relevant_radices[i]
-            result = result * list_size + index
+
+        result = 0
+        for i, part in enumerate(parts):
+            try:
+                index = relevant_positions[i][part]
+            except KeyError:
+                raise EncoderException(
+                    f"'{part}' is not a known {what} at position {i} of the phrase"
+                ) from None
+            result = result * relevant_radices[i] + index
 
         return result
 
