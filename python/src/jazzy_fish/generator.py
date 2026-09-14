@@ -80,6 +80,16 @@ class Generator:
         self.current_time: Callable[[], float] = lambda: time.time()
         self.resolution = resolution
 
+        # An epoch in the future makes _current_time() negative. last_times starts
+        # at -1, so the very first next_id() takes the catch-up branch and waits
+        # for wall-clock to reach the epoch -- an unbounded stall, not an error.
+        now_millis = int(self.current_time() * 1000)
+        if self.epoch_millis > now_millis:
+            raise GeneratorException(
+                f"The epoch is {(self.epoch_millis - now_millis) / 1000:.3f}s in the future; "
+                "identifiers cannot be generated before their own epoch"
+            )
+
         self.machine_id_bits = machine_id_bits
         max_machine_id = (1 << machine_id_bits) - 1 if machine_id_bits > 0 else 0
 
@@ -150,8 +160,24 @@ class Generator:
         ) // self.resolution.value
 
     def _wait_for_next_time(self, current_time: int, last_time: int) -> int:
-        # busy wait until the required time-unit passes
+        """
+        Waits until the time unit after last_time has been reached.
+
+        Sleeps for the time that is known to remain rather than spinning on the
+        clock: a spin costs a whole core, and at MINUTE resolution a single
+        exhausted sequence would burn one for up to a minute. The remaining time
+        is computed from the target time unit, so one sleep normally suffices;
+        the loop only re-runs if the clock had not advanced as far as expected.
+        """
+
+        deadline_millis = (last_time + 1) * self.resolution.value + self.epoch_millis
         while current_time <= last_time:
+            remaining_millis = deadline_millis - int(self.current_time() * 1000)
+            if remaining_millis > 0:
+                time.sleep(remaining_millis / 1000)
+            else:
+                # Within the final millisecond; yield rather than spin hot.
+                time.sleep(0)
             current_time = self._current_time()
         return current_time
 
