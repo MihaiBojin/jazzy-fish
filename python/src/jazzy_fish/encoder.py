@@ -218,7 +218,13 @@ class WordEncoder:
             KeyPhrase: The resulting keyphrase.
         """
 
-        # Validate the input
+        # Validate the input.
+        # The lower bound matters as much as the upper one: Python's modulo returns a
+        # non-negative remainder, so a negative input would encode as some other number.
+        if number < 0:
+            raise EncoderException(
+                f"The number ({number}) is negative; only values in [0, {self._abs_max - 1}] can be encoded"
+            )
         if number >= self._abs_max:
             raise EncoderException(
                 f"The number ({number}) is too large to be encoded with up to {self._max_phrase_size} words (max: {self._max_values[-1] - 1})"
@@ -271,6 +277,10 @@ class WordEncoder:
             raise EncoderException(
                 f"The sequence contains more words that can be decoded with up to {self._max_phrase_size} words"
             )
+        if seq_length < self._min_phrase_size:
+            raise EncoderException(
+                f"The phrase contains {seq_length} word(s), but this encoder never emits fewer than {self._min_phrase_size}"
+            )
 
         # Calculate the indices of each specified word
         relevant_positions = self._wordlist._word_positions[-seq_length:]
@@ -297,11 +307,15 @@ class WordEncoder:
         """
 
         word_abbrs = abbr.split(self.separator)
-        if not len(word_abbrs):
-            raise EncoderException(
-                f"The id ({abbr}) could not be split into words using the provided split character ({self.separator})"
-            )
         seq_length = len(word_abbrs)
+        if seq_length > self._max_phrase_size:
+            raise EncoderException(
+                f"The abbreviation contains more parts than can be decoded with up to {self._max_phrase_size} words"
+            )
+        if seq_length < self._min_phrase_size:
+            raise EncoderException(
+                f"The abbreviation contains {seq_length} part(s), but this encoder never emits fewer than {self._min_phrase_size}"
+            )
 
         # Calculate the indices of each specified word
         relevant_prefixes = self._wordlist._abbr_to_pos[-seq_length:]
