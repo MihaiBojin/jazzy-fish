@@ -32,8 +32,6 @@ classifiers = [
 cli = [
     # keep-sorted start
     "duckdb==1.5.5",
-    # duckdb requires numpy to register the Python UDFs used by generate-wordlists
-    "numpy==2.5.2",
     # keep-sorted end
 ]
 dev = [

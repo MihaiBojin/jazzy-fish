@@ -8,7 +8,6 @@ Various helper functions and jazzy_fish_tools configurations.
 from importlib import resources
 import itertools
 from pathlib import Path
-from queue import Queue
 import shutil
 from typing import Iterable, List, Optional, Tuple
 
@@ -18,38 +17,6 @@ MAX_LENGTH: int = 8
 MAX_PREFIX_CHARS: int = 6
 OUTPUT_PATH: str = "out"
 DATABASE: str = f"{OUTPUT_PATH}/dictionary.duckdb"
-
-
-def least_similar_words(word_list: List[str], limit: int) -> List[str]:
-    # Nothing to do if we have fewer words than the desired limit
-    words = sorted(word_list)
-    cnt = len(words)
-    if cnt < limit:
-        return words
-
-    # Cannot really do much if only 2 words are available
-    if cnt < 2:
-        return words[:limit]
-
-    results = list()
-    # Start by selecting the first/last word, sorted alphabetically
-    results += [words[0], words[cnt - 1]]
-
-    q: Queue[Tuple[int, ...]] = Queue()
-
-    # Build a balanced BST to attempt to randomize the chosen words
-    q.put((1, cnt - 2))
-    while not q.empty():
-        el = q.get()
-        if el[0] > el[1]:
-            continue
-
-        mid = (el[0] + el[1]) // 2
-        results += [words[mid]]
-        q.put((el[0], mid - 1))
-        q.put((mid + 1, el[1]))
-
-    return results[:limit]
 
 
 # generate prefix combinations (MAX_CHARS, k) as the list of all possible prefix positions

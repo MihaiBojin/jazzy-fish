@@ -85,19 +85,13 @@ WITH RECURSIVE
             CAST(
                 LEAST (LENGTH (all_words), POWER(2, prefix_length)) AS INTEGER
             ) AS max_words_for_prefix,
-            LIST_SORT (LIST_SLICE (words, 1, POWER(2, prefix_length))) AS first_words
+            -- One word represents each prefix. `words` is already sorted by
+            -- STRING_AGG above, so element 1 is the alphabetically first.
+            all_words[1] AS selected_word
         FROM
             agg_by_prefix
-    ),
-    -- and call an UDF to select words that have a lower chance of being similar to each other
-    final AS (
-        SELECT
-            full_list.*,
-            least_similar_words (all_words, max_words_for_prefix) AS selected_words
-        FROM
-            full_list
     )
 SELECT
     *
 FROM
-    final;
+    full_list;
