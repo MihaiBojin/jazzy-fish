@@ -44,9 +44,10 @@ def clean_dictionary(dictionary_dir: str, backup_original: bool = False) -> None
     ignored: Set[str] = set()
     ignored.update(helpers.load_ignored_words())
 
-    # Find all files containing list of words, in the directory
+    # Find all files containing list of words, in the directory.
+    # sorted() so a run is reproducible regardless of filesystem ordering.
     directory = Path(dictionary_dir)
-    files = [f for f in directory.iterdir() if f.is_file()]
+    files = sorted(f for f in directory.iterdir() if f.is_file())
 
     # Process all files
     for file in files:

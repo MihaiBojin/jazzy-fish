@@ -106,9 +106,14 @@ def load_ignored_words() -> List[str]:
     return words
 
 
-def is_letter(word):
-    """Returns true if the word contains only a-zA-Z letters"""
-    return all(char.isascii() and char.isalpha() for char in word.strip())
+def is_letter(word: str) -> bool:
+    """Returns true if the word is non-empty and contains only a-zA-Z letters"""
+    # all() over an empty string is True, so without the emptiness check a blank
+    # line counted as a valid word and reached the encoder as "".
+    stripped = word.strip()
+    return bool(stripped) and all(
+        char.isascii() and char.isalpha() for char in stripped
+    )
 
 
 def read_lines(file_path: str) -> List[str]:

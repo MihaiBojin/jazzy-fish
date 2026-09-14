@@ -21,6 +21,7 @@ from jazzy_fish_tools.helpers import (
     MIN_LENGTH,
     OUTPUT_PATH,
     generate_all_prefix_combinations,
+    is_letter,
     load_ignored_words,
     least_similar_words,
     read_file,
@@ -64,7 +65,7 @@ def categorize_words(
 ):
     position_in_word = "".join(map(str, char_positions))
 
-    results = list()
+    results: List[Tuple[int, str, bool, str, str, str]] = list()
 
     # Read all word parts in the dictionary
     with open(dictionary_dir, "r") as file:
@@ -84,6 +85,12 @@ def categorize_words(
             if len(word) < MIN_LENGTH or len(word) > MAX_LENGTH:
                 continue
 
+            # Only ASCII letters. clean-dictionary applies the same filter, but it
+            # is a separate command and nothing requires running it first, so a raw
+            # dictionary reaches this loop with apostrophes and accents intact.
+            if not is_letter(word):
+                continue
+
             # Skip words that were already seen
             # to avoid generating sentences of the same token
             if word in seen_words:
@@ -97,32 +104,24 @@ def categorize_words(
             # Compute the actual prefix
             prefix_chars = "".join([word[p] for p in char_positions])
 
-            # Define the fields to persist
-            fields = [
-                len(position_in_word),  # prefix length
-                position_in_word,
-                is_prefix,  # if the prefix is a true prefix starting with the first char (012,etc) or a non contiguous seq
-                prefix_chars,
-                word,
-                word_part,
-            ]
-
-            # Prepare for insertion to the database
-            quoted = [f"'{item}'" if isinstance(item, str) else item for item in fields]
-
             # Append the entry
-            results.append(",".join(map(str, quoted)))
+            results.append(
+                (
+                    len(position_in_word),  # prefix length
+                    position_in_word,
+                    # whether the prefix starts at the first char (012, etc.) or is
+                    # a non-contiguous sequence
+                    is_prefix,
+                    prefix_chars,
+                    word,
+                    word_part,
+                )
+            )
 
-    # Store words in batches
-    sz = 1000
-    batches = [(boundary, boundary + sz) for boundary in range(0, len(results), sz)]
-    for b in batches:
-        # Store the result set into the database
-        start, finish = b
-        batch = results[start:finish]
-        values = "), (".join(batch)
-        sql = f"INSERT INTO words VALUES ({values});"
-        conn.execute(sql)
+    # Bind the values rather than splicing them into the statement: a word holding
+    # an apostrophe used to produce a malformed INSERT and abort the run.
+    if results:
+        conn.executemany("INSERT INTO words VALUES (?, ?, ?, ?, ?, ?);", results)
 
 
 def main() -> None:
@@ -144,6 +143,17 @@ def main() -> None:
 
     print("Processing word lists...")
     start_time = time.time()
+
+    # Neither of these depends on the prefix being processed, and the loop below
+    # runs 57 times.
+    ignored_words = load_ignored_words()
+    # sorted(), not iterdir() order: a word appearing in two word parts is claimed
+    # by whichever file is read first, so filesystem order would decide the
+    # contents of the generated wordlists -- and therefore their checksums.
+    # dictionary/5 has 1,066 such words.
+    directory = Path(args.dir)
+    files = sorted(f for f in directory.iterdir() if f.is_file())
+
     for prefix_length in PREFIX_LENGTHS:
         for char_positions in generate_all_prefix_combinations(prefix_length):
             # Skip non-sequential prefixes, if needed
@@ -154,17 +164,13 @@ def main() -> None:
             print(f"Processing {char_positions}")
 
             # Avoid duplicate words and also globally exclude ignored words
-            seen_words: Set[str] = set()
-            seen_words.update(load_ignored_words())
+            seen_words: Set[str] = set(ignored_words)
 
-            # Find all files (individual lists of words) in the directory
-            directory = Path(args.dir)
-            files = [f for f in directory.iterdir() if f.is_file()]
             for file in files:
                 categorize_words(conn, file, char_positions, is_prefix, seen_words)
 
-        end_time = time.time()
-        print(f"Processed word lists in: {end_time - start_time:.2f} seconds\n")
+    end_time = time.time()
+    print(f"Processed word lists in: {end_time - start_time:.2f} seconds\n")
 
     # Process the words table and extract words for each prefix
     print("Extracting unique words, grouped by prefix...")
@@ -195,11 +201,6 @@ def main() -> None:
 
             # Note: this code assumes that the four word parts are always specified and will only process these, not other names
             for word_part in ALLOWED_WORD_PARTS:
-                # Skip non-sequential prefixes, if needed
-                is_prefix = char_positions == tuple(range(0, prefix_length))
-                if ONLY_SEQ_PREFIXES and not is_prefix:
-                    continue
-
                 word_size = f"[{MIN_LENGTH}, {MAX_LENGTH}]"
                 print(
                     f"Generating {position_in_word}, word type '{word_part}', word length {word_size}..."
@@ -215,11 +216,10 @@ def main() -> None:
 
                 # Store the selected words
                 outfile = f"{wordlist_out_dir}/{word_part}.txt"
-                with open(outfile, "w") as out:
-                    for row in result:
-                        out.write(row[0] + "\n")
-                    # Remove the last newline
-                    out.truncate(out.tell() - 1)
+                with open(outfile, "w", encoding="utf-8") as out:
+                    # join rather than write-then-truncate: with no rows,
+                    # truncate(tell() - 1) became truncate(-1) and raised OSError.
+                    out.write("\n".join(row[0] for row in result))
                 print(f"Saved '{outfile}'\n")
 
                 # Store the wordlists and stats
@@ -230,14 +230,9 @@ def main() -> None:
             print(f"Storing stats for 2/3/4 words for {position_in_word}...\n")
             ordered = sorted(stats, key=lambda x: x[1])
 
-            two_words = [f[0] for f in ordered[-2:]]
-            _save_stats(conn, position_in_word, is_prefix, two_words, wordlist_files)
-
-            three_words = [f[0] for f in ordered[-3:]]
-            _save_stats(conn, position_in_word, is_prefix, three_words, wordlist_files)
-
-            four_words = [f[0] for f in ordered]
-            _save_stats(conn, position_in_word, is_prefix, four_words, wordlist_files)
+            for take in (2, 3, 4):
+                selected = [f[0] for f in ordered[-take:]]
+                _save_stats(conn, position_in_word, is_prefix, selected, wordlist_files)
 
             # Generate checksums
             checksums = list()
@@ -315,7 +310,11 @@ def _save_stats(
             '',
             total
         FROM
-            total;
+            total
+        -- Without this the row order is whatever the parallel scan produced, so
+        -- regenerating an unchanged wordlist rewrote its stats file.
+        ORDER BY
+            1, 2;
     """
     result = conn.execute(sql).fetchall()
 
@@ -345,6 +344,10 @@ def _save_stats(
             wordlist_files=wordlist_files,
             position_in_word=position_in_word,
             min_phrase_size=len(word_parts),
+            # The stats describe these word parts, so the samples must too.
+            template=" ".join(
+                part for part in ALLOWED_WORD_PARTS if part in word_parts
+            ),
         )
         out.writelines(words)
 
@@ -361,7 +364,7 @@ def _generate_sample_words(
     words = dict()
     for f in wordlist_files:
         word_part = Path(f).stem
-        with open(f, "r") as file:
+        with open(f, "r", encoding="utf-8") as file:
             words[word_part] = file.readlines()
 
     # Initialize the encoder with the designated template
@@ -385,13 +388,15 @@ def _generate_sample_words(
     sizes = [len(o) for o in ordered[-min_phrase_size:]]
     max_for_desired_word_size = reduce(lambda x, y: x * y, sizes) - 1
 
+    # Seeded so a regenerated wordlist produces the same stats file: an unseeded
+    # sample made every run report a diff.
+    rng = random.Random(f"{position_in_word}/{min_phrase_size}")
+
     results: List[str] = list()
     for _ in range(0, how_many):
-        val = random.randint(min_for_desired_word_size, max_for_desired_word_size)
+        val = rng.randint(min_for_desired_word_size, max_for_desired_word_size)
         encoded = e.encode(val)
-        key_phrase = e.encode(val).keyphrase
-        word = f"{key_phrase} ({encoded.abbr})"
-        results.append(f"- {word}\n")
+        results.append(f"- {encoded.keyphrase} ({encoded.abbr})\n")
 
     return results
 
