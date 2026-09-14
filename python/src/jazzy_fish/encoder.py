@@ -354,7 +354,7 @@ def _read_words(from_path: str, package_name: Optional[str] = None) -> List[str]
         data_path = str(resources.files(package_name).joinpath(from_path))
 
     # Read all words from file
-    with open(data_path, "r") as file:
+    with open(data_path, "r", encoding="utf-8") as file:
         data = [ln.strip() for ln in file]
     return data
 

@@ -11,19 +11,17 @@ import argparse
 from pathlib import Path
 import shutil
 import time
-from typing import List, Set
+from typing import List, Optional, Set
 from jazzy_fish_tools import helpers
 
-# If True, updates the same input word list
-# if False, creates a new file at the designated output location
-UPDATE_IN_PLACE = True
 
-
-def _clean(file: Path, ignored: Set[str] = set()) -> List[str]:
+def _clean(file: Path, ignored: Optional[Set[str]] = None) -> List[str]:
     """Cleans the specified file by removing non-alpha characters and excluding any words specified as ignored"""
 
+    ignored = ignored if ignored is not None else set()
+
     # Read all words from the input file
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         lines = f.readlines()
     # Remove words that contain non-alpha characters
     lines = list(filter(helpers.is_letter, lines))
@@ -61,7 +59,7 @@ def clean_dictionary(dictionary_dir: str, backup_original: bool = False) -> None
             print(f"Stored a backup at: {backup}")
 
         # update the original file
-        with open(file, "w") as f:
+        with open(file, "w", encoding="utf-8") as f:
             f.writelines(lines)
             print(f"Cleaned list in dictionary: {file}")
 
@@ -71,9 +69,14 @@ def main() -> None:
         description="Clean all lists of words found in a dictionary"
     )
     parser.add_argument("dir", help="Path to the dictionary dir.")
+    parser.add_argument(
+        "--backup",
+        action="store_true",
+        help="Write a timestamped copy of each file before overwriting it.",
+    )
     args = parser.parse_args()
 
-    clean_dictionary(args.dir)
+    clean_dictionary(args.dir, backup_original=args.backup)
 
 
 if __name__ == "__main__":
