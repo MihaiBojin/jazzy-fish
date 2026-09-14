@@ -75,10 +75,22 @@ class Generator:
                                 If set to 0, only one identifier can be generated per machine in each time unit
         """
 
-        self.epoch_millis = int(epoch * 1000)
+        # Round the epoch to whole milliseconds up front. Multiplying float seconds
+        # by 1000 and truncating loses a millisecond for most fractional values --
+        # int(1.001 * 1000) is 1000 -- so the clock works in integer milliseconds.
+        self.epoch_millis = round(epoch * 1000)
         # Allows replacing the time in tests
         self.current_time: Callable[[], float] = lambda: time.time()
         self.resolution = resolution
+
+        if machine_id_bits < 0:
+            raise GeneratorException(
+                f"machine_id_bits must be non-negative, got {machine_id_bits}"
+            )
+        if sequence_bits < 0:
+            raise GeneratorException(
+                f"sequence_bits must be non-negative, got {sequence_bits}"
+            )
 
         self.machine_id_bits = machine_id_bits
         max_machine_id = (1 << machine_id_bits) - 1 if machine_id_bits > 0 else 0
@@ -87,7 +99,10 @@ class Generator:
         if not machine_ids:
             raise GeneratorException("At least one machine ID must be provided")
 
-        self.machine_ids = list(set(machine_ids))
+        # dict.fromkeys deduplicates while preserving the caller's order. set() also
+        # deduplicates but reorders by hash, so [10, 5, 1] rotated as [1, 10, 5] and
+        # the rotation order was an implementation detail of the interpreter.
+        self.machine_ids = list(dict.fromkeys(machine_ids))
         for mid in self.machine_ids:
             if not 0 <= mid <= max_machine_id:
                 raise GeneratorException(
@@ -123,7 +138,8 @@ class Generator:
             current_time = self._wait_for_next_time(current_time, last_time)
 
         if current_time == last_time:
-            # TODO: might need to check self.sequence_bits > 0
+            # No sequence_bits check needed: max_sequence is then 0, so the first
+            # increment trips the rollover below and waits for the next time unit.
             sequence += 1
             if sequence > self.max_sequence:
                 current_time = self._wait_for_next_time(current_time, last_time)
@@ -145,8 +161,10 @@ class Generator:
         return id
 
     def _current_time(self) -> int:
+        # round(), not int(): float seconds carry the same representation error on
+        # the way in that they do for the epoch.
         return (
-            int(self.current_time() * 1000) - self.epoch_millis
+            round(self.current_time() * 1000) - self.epoch_millis
         ) // self.resolution.value
 
     def _wait_for_next_time(self, current_time: int, last_time: int) -> int:
