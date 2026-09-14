@@ -2,14 +2,14 @@
 Generator
 =========
 
-Contains the Generator and ThreadSafeGenerator classes which can generate unique integer identifiers
+Contains the Generator class, which generates unique integer identifiers
 that respect the configured settings and can be later converted to [word sequences] with a WordEncoder.
 
 Classes:
     Generator - Generates unique integer identifiers with configurable properties. It is formed by three parts (time unit, machine id, sequence).
     GeneratorException - Raised when a Generator is misconfigured.
     Resolution - Used to specify the time unit of the generated identifiers.
-    ThreadSafeGenerator - Wraps the Generator class, making it thread safe (wrapping `next_id()` with a lock).
+    ThreadSafeGenerator - Deprecated alias for Generator, which is thread safe on its own.
 """
 
 from collections import defaultdict
@@ -17,6 +17,7 @@ import threading
 import time
 from typing import Callable, Dict, List
 from enum import Enum
+import warnings
 
 
 class Resolution(Enum):
@@ -102,6 +103,11 @@ class Generator:
         self.last_times: Dict[int, int] = defaultdict(lambda: -1)
         self.current_machine_index = 0
 
+        # next_id() reads a sequence, decides on it, and writes it back. Without a
+        # lock those three steps interleave across threads and two callers derive
+        # the same id from the same sequence value.
+        self._lock = threading.Lock()
+
     def next_id(self) -> int:
         """
         Generates unique values according to the configured class settings.
@@ -112,6 +118,10 @@ class Generator:
             int: A unique integer identifier, relative to the configured time unit, and machine ID.
         """
 
+        with self._lock:
+            return self._next_id_locked()
+
+    def _next_id_locked(self) -> int:
         machine_id = self._next_machine_id()
         sequence = self.sequences[machine_id]
 
@@ -165,20 +175,9 @@ class Generator:
 
 class ThreadSafeGenerator(Generator):
     """
-    Wraps the Generator class, making it thread safe (wrapping `next_id()` with a lock).
+    Deprecated alias for Generator, which is now thread safe on its own.
 
-    Attributes:
-       epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
-       resolution (float): The time unit resolution, to which the other parameters will be tied to.
-                           For example, if configured to 1, IDs will be generated relative to seconds,
-                           and if configured to 0.001, IDs will be relative to milliseconds.
-       machine_ids (List[int]): A list of machine identifiers owned by the current instance;
-                                at least one value must be provided; duplicates will be ignored.
-       machine_id_bits (int): How many bits are allocated for the machine ID;
-                              only positive integers are valid.
-       sequence_bits (int): How many bits are allocated for the local sequence;
-                            only positive integers are valid.
-                            If set to 0, only one identifier can be generated per machine in each time unit
+    Kept so existing code keeps working. Use Generator directly.
     """
 
     def __init__(
@@ -189,35 +188,13 @@ class ThreadSafeGenerator(Generator):
         machine_id_bits: int,
         sequence_bits: int,
     ):
-        """
-        Constructs a ThreadSafeGenerator.
-
-        Parameters:
-            epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
-            resolution (float): The time unit resolution, to which the other parameters will be tied to.
-                                For example, if configured to 1, IDs will be generated relative to seconds,
-                                and if configured to 0.001, IDs will be relative to milliseconds.
-            machine_ids (List[int]): A list of machine identifiers owned by the current instance;
-                                    at least one value must be provided; duplicates will be ignored.
-            machine_id_bits (int): How many bits are allocated for the machine ID;
-                                only positive integers are valid.
-            sequence_bits (int): How many bits are allocated for the local sequence;
-                                only positive integers are valid.
-                                If set to 0, only one identifier can be generated per machine in each time unit
-        """
+        warnings.warn(
+            "ThreadSafeGenerator is deprecated; Generator is now thread safe. "
+            "Use Generator directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(epoch, resolution, machine_ids, machine_id_bits, sequence_bits)
-        self.lock = threading.Lock()
-
-    def next_id(self) -> int:
-        """
-        Generates unique values in a thread safe manner, by wrapping Generator.next_id() with a lock.
-
-        Returns:
-            int: A unique integer identifier, relative to the configured time unit, and machine ID.
-        """
-
-        with self.lock:
-            return super().next_id()
 
 
 class GeneratorException(Exception):

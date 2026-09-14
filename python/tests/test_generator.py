@@ -8,7 +8,6 @@ from jazzy_fish.generator import (
     Generator,
     GeneratorException,
     Resolution,
-    ThreadSafeGenerator,
 )
 
 
@@ -69,7 +68,7 @@ class TestGenerator(unittest.TestCase):
 
     def test_guarded_machine_id(self):
         with self.assertRaises(GeneratorException):
-            ThreadSafeGenerator(
+            Generator(
                 epoch=datetime.now(tz=timezone.utc).timestamp(),
                 machine_ids=[2],  # Invalid, since 2^1-1 = 1; 2>1
                 machine_id_bits=1,
@@ -113,7 +112,7 @@ def parameterized_generator(
 ) -> List[int]:
     epoch = time.time()
 
-    generator = ThreadSafeGenerator(
+    generator = Generator(
         epoch=epoch,
         machine_ids=machine_ids,
         machine_id_bits=machine_id_bits,
