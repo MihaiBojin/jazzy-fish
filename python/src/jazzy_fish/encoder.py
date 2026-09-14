@@ -54,9 +54,19 @@ class Wordlist:
                 f"Dictionary name must contain the identifying positions for word abbreviations, got: '{name_parts[0]}'"
             )
 
+        self.name = name
         self._abbr_positions = name_parts[0]
         self._abbr_char_positions = [int(c) for c in name_parts[0]]
         self._checksum = name_parts[1]
+
+        # Two base-36 characters identifying this wordlist. Decoding an
+        # abbreviation produced by a different wordlist mostly raises, but 0.44%
+        # of the time it returned a plausible wrong integer instead.
+        #
+        # Derived from the whole name rather than a slice of the checksum: the
+        # shipped 012_8562fb9 and 024_84f184f share a leading checksum character,
+        # so a one-character slice would have collided and protected nothing.
+        self.tag = _wordlist_tag(name)
 
         # Load and cache wordlists
         self._words = [[word.strip() for word in lst] for lst in dictionary_words]
@@ -163,6 +173,10 @@ class WordEncoder:
                                If not provided, it will default to the wordlist size.
         separator (str): The separator character used to delimit keyphrase and abbreviation parts
                          (e.g., "niftier-engine", or "nif-eng")
+        tag_abbreviations (bool): If true, abbreviations carry a trailing character
+                                  identifying the wordlist that produced them, so
+                                  decoding one under the wrong wordlist fails
+                                  instead of returning a wrong integer.
     """
 
     def __init__(
@@ -170,6 +184,7 @@ class WordEncoder:
         wordlist: Wordlist,
         min_phrase_size: Optional[int] = None,
         separator: str = "-",
+        tag_abbreviations: bool = True,
     ):
         """
         Constructs a new instance of WordEncoder.
@@ -201,6 +216,7 @@ class WordEncoder:
                 f"You must provide a single character that separates parts of the short identifier: '{separator}' is not valid"
             )
         self.separator = separator
+        self.tag_abbreviations = tag_abbreviations
 
         # cache other needed values
         self._radices = self._wordlist._radices
@@ -250,6 +266,8 @@ class WordEncoder:
         # Calculate the short identifier
         short_sequence = [self._wordlist.to_prefix(word) for word in selected_words]
         abbr = self.separator.join(short_sequence)
+        if self.tag_abbreviations:
+            abbr += self._wordlist.tag
         keyphrase = self.separator.join(selected_words)
 
         return KeyPhrase(abbr=abbr, keyphrase=keyphrase, id=original_val)
@@ -296,6 +314,15 @@ class WordEncoder:
             int: The corresponding integer.
         """
 
+        if self.tag_abbreviations:
+            expected = self._wordlist.tag
+            if not abbr.endswith(expected):
+                raise EncoderException(
+                    f"The abbreviation '{abbr}' was not produced by wordlist "
+                    f"'{self._wordlist.name}' (expected it to end with '{expected}')"
+                )
+            abbr = abbr[: -len(expected)]
+
         word_abbrs = abbr.split(self.separator)
         if not len(word_abbrs):
             raise EncoderException(
@@ -315,6 +342,11 @@ class WordEncoder:
             result = result * list_size + index
 
         return result
+
+    @property
+    def wordlist_name(self) -> str:
+        """The name of the wordlist backing this encoder, for storing alongside ids."""
+        return self._wordlist.name
 
     def get_max(self) -> int:
         """
@@ -357,6 +389,23 @@ def _read_words(from_path: str, package_name: Optional[str] = None) -> List[str]
     with open(data_path, "r") as file:
         data = [ln.strip() for ln in file]
     return data
+
+
+_TAG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+_TAG_LENGTH = 2
+
+
+def _wordlist_tag(name: str) -> str:
+    """Derives a short, stable identifier for a wordlist from its full name."""
+
+    value = int.from_bytes(
+        hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).digest()[:8], "big"
+    )
+    tag = ""
+    for _ in range(_TAG_LENGTH):
+        value, remainder = divmod(value, len(_TAG_ALPHABET))
+        tag = _TAG_ALPHABET[remainder] + tag
+    return tag
 
 
 def aggregate_checksums(checksums: List[str]) -> str:
