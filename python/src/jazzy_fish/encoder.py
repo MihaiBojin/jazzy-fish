@@ -49,7 +49,7 @@ class Wordlist:
             raise ValueError(
                 f"Dictionary name is invalid ({name}), should match '[prefix]_[checksum]'"
             )
-        if not len(name_parts[0]) or not all(["0" <= c < "9" for c in name_parts[0]]):
+        if not len(name_parts[0]) or not all([c.isdigit() for c in name_parts[0]]):
             raise ValueError(
                 f"Dictionary name must contain the identifying positions for word abbreviations, got: '{name_parts[0]}'"
             )
@@ -60,14 +60,21 @@ class Wordlist:
 
         # Load and cache wordlists
         self._words = [[word.strip() for word in lst] for lst in dictionary_words]
+
+        # Every guarantee below is one the encoding depends on and nothing else
+        # enforces. A dict comprehension over colliding keys keeps the last index
+        # silently, so an unvalidated wordlist decodes to the wrong integer rather
+        # than failing.
+        self._validate_words()
+
         # Map words to dictionary position
         self._word_positions = [
-            {word.strip(): i for i, word in enumerate(lst)} for lst in dictionary_words
+            {word: i for i, word in enumerate(lst)} for lst in self._words
         ]
         # Map of word abbreviations to dictionary positions
         self._abbr_to_pos = [
-            {self.to_prefix(word.strip()): idx for idx, word in enumerate(lst)}
-            for lst in dictionary_words
+            {self.to_prefix(word): idx for idx, word in enumerate(lst)}
+            for lst in self._words
         ]
 
         # Check that the provided words match the provided dictionary name
@@ -82,6 +89,43 @@ class Wordlist:
         # Stores the attributes needed by WordEncoder to fulfill encode/decode requests
         self._radices = [len(lst) for lst in self._words]
         self._max_words_in_phrase = len(self._words)
+
+    def _validate_words(self) -> None:
+        """Rejects wordlists that cannot round-trip through encode/decode."""
+
+        required_length = max(self._abbr_char_positions) + 1
+
+        for list_index, words in enumerate(self._words):
+            if not words:
+                raise ValueError(f"Word list {list_index} is empty")
+
+            seen: dict[str, int] = {}
+            prefixes: dict[str, str] = {}
+            for position, word in enumerate(words):
+                if not word:
+                    raise ValueError(
+                        f"Word list {list_index} contains an empty word; "
+                        "blank lines are not valid entries"
+                    )
+                if len(word) < required_length:
+                    raise ValueError(
+                        f"Word '{word}' in list {list_index} is {len(word)} characters, "
+                        f"but abbreviation positions '{self._abbr_positions}' need at least {required_length}"
+                    )
+                if word in seen:
+                    raise ValueError(
+                        f"Word '{word}' appears more than once in list {list_index} "
+                        f"(positions {seen[word]} and {position})"
+                    )
+                seen[word] = position
+
+                prefix = self.to_prefix(word)
+                if prefix in prefixes:
+                    raise ValueError(
+                        f"Words '{prefixes[prefix]}' and '{word}' in list {list_index} "
+                        f"share the abbreviation '{prefix}'; abbreviations must be unique"
+                    )
+                prefixes[prefix] = word
 
     def to_prefix(self, word: str) -> str:
         """Abbreviates a word, based on the configured positions"""
