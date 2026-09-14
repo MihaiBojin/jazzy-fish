@@ -32,7 +32,11 @@ class Wordlist:
     """
 
     def __init__(
-        self, name: str, dictionary_words: List[List[str]], verify_checksum: bool = True
+        self,
+        name: str,
+        dictionary_words: List[List[str]],
+        verify_checksum: bool = True,
+        word_order: Optional[List[str]] = None,
     ):
         """
         Constructs a new instance of Wordlist.
@@ -54,6 +58,7 @@ class Wordlist:
                 f"Dictionary name must contain the identifying positions for word abbreviations, got: '{name_parts[0]}'"
             )
 
+        self.word_order = list(word_order) if word_order else None
         self._abbr_positions = name_parts[0]
         self._abbr_char_positions = [int(c) for c in name_parts[0]]
         self._checksum = name_parts[1]
@@ -70,13 +75,21 @@ class Wordlist:
             for lst in dictionary_words
         ]
 
-        # Check that the provided words match the provided dictionary name
+        # Check that the provided words match the provided dictionary name.
+        # The digests are hashed in list order, so a permuted word_order changes
+        # the aggregate and is caught here rather than silently producing a
+        # different encoding for every integer.
         if verify_checksum:
             checksum = Wordlist.compute_checksum(self._words, self._abbr_positions)
             hash = checksum[:7]
             if self._checksum != hash:
+                order = (
+                    f" (loaded with word order {self.word_order})"
+                    if self.word_order and self.word_order != DEFAULT_WORD_ORDER
+                    else ""
+                )
                 raise ValueError(
-                    f"Checksum validation has failed, expected '{self._checksum}', got '{hash}'"
+                    f"Checksum validation has failed, expected '{self._checksum}', got '{hash}'{order}"
                 )
 
         # Stores the attributes needed by WordEncoder to fulfill encode/decode requests
@@ -111,21 +124,28 @@ class Wordlist:
             _read_words(f"{from_path}/{word}.txt", package_name) for word in word_order
         ]
 
-        return Wordlist(name=dictionary_name, dictionary_words=words)
+        return Wordlist(
+            name=dictionary_name, dictionary_words=words, word_order=word_order
+        )
 
     @staticmethod
     def compute_checksum(wordlists: List[List[str]], position_in_word: str) -> str:
-        """Computes a checksum for the specified wordlists and abbreviation position."""
+        """
+        Computes a checksum for the specified wordlists and abbreviation positions.
+
+        The per-list digests are hashed in list order, not sorted, because the
+        order of the word lists decides what every integer encodes to. Sorting
+        them made the checksum blind to the one thing it exists to pin down.
+        """
 
         checksums = [Wordlist.checksum(words) for words in wordlists]
-        checksums.sort()
         return aggregate_checksums([position_in_word] + checksums)
 
     @staticmethod
     def checksum(words: List[str]) -> str:
         """Calculates the SHA-1 checksum of a list of words."""
 
-        sha1 = hashlib.sha1()
+        sha1 = hashlib.sha1(usedforsecurity=False)
         bytes = "\n".join(words).encode("utf-8")
         buffer = io.BytesIO(bytes)
         try:
@@ -360,11 +380,16 @@ def _read_words(from_path: str, package_name: Optional[str] = None) -> List[str]
 
 
 def aggregate_checksums(checksums: List[str]) -> str:
-    """Calculate an aggregate checksum from a list of checksums."""
+    """
+    Calculate an aggregate checksum from a list of checksums.
 
-    sha1 = hashlib.sha1()
-    # Sort to ensure consistent order
-    for checksum in sorted(checksums):
+    The order given is the order hashed. Callers are responsible for passing the
+    parts in a defined order; for a wordlist that is the abbreviation positions
+    followed by the per-list digests in word-list order.
+    """
+
+    sha1 = hashlib.sha1(usedforsecurity=False)
+    for checksum in checksums:
         sha1.update(checksum.encode("utf-8"))
 
     return sha1.hexdigest()

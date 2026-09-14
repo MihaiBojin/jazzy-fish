@@ -158,9 +158,9 @@ appropriate values for your use-case.
 
 By default, jazzy-fish ships with the following wordlists:
 
-- [012_8562fb9](python/src/encoder/resources/012_8562fb9)
-- [024_84f184f](python/src/encoder/resources/024_84f184f)
-- [01234_f233650](python/src/encoder/resources/01234_f233650)
+- [012_80a1774](python/src/encoder/resources/012_80a1774)
+- [024_e4d0f5e](python/src/encoder/resources/024_e4d0f5e)
+- [01234_011cf27](python/src/encoder/resources/01234_011cf27)
 
 #### N-per-second generation
 
