@@ -44,9 +44,9 @@ class Generator:
         machine_ids (List[int]): A list of machine identifiers owned by the current instance;
                                  at least one value must be provided; duplicates will be ignored.
         machine_id_bits (int): How many bits are allocated for the machine ID;
-                               only positive integers are valid.
+                               only non-negative integers are valid.
         sequence_bits (int): How many bits are allocated for the local sequence;
-                             only positive integers are valid.
+                             only non-negative integers are valid.
                              If set to 0, only one identifier can be generated per machine in each time unit
     """
 
@@ -69,9 +69,9 @@ class Generator:
             machine_ids (List[int]): A list of machine identifiers owned by the current instance;
                                     at least one value must be provided; duplicates will be ignored.
             machine_id_bits (int): How many bits are allocated for the machine ID;
-                                only positive integers are valid.
+                                only non-negative integers are valid.
             sequence_bits (int): How many bits are allocated for the local sequence;
-                                only positive integers are valid.
+                                only non-negative integers are valid.
                                 If set to 0, only one identifier can be generated per machine in each time unit
         """
 
@@ -169,15 +169,15 @@ class ThreadSafeGenerator(Generator):
 
     Attributes:
        epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
-       resolution (float): The time unit resolution, to which the other parameters will be tied to.
-                           For example, if configured to 1, IDs will be generated relative to seconds,
-                           and if configured to 0.001, IDs will be relative to milliseconds.
+       resolution (Resolution): The time unit resolution, to which the other parameters will be relative to.
+                                For example, if specified as SECOND, IDs will be generated relative to seconds,
+                                and if specified as MILLISECOND, IDs will be relative to milliseconds.
        machine_ids (List[int]): A list of machine identifiers owned by the current instance;
                                 at least one value must be provided; duplicates will be ignored.
        machine_id_bits (int): How many bits are allocated for the machine ID;
-                              only positive integers are valid.
+                              only non-negative integers are valid.
        sequence_bits (int): How many bits are allocated for the local sequence;
-                            only positive integers are valid.
+                            only non-negative integers are valid.
                             If set to 0, only one identifier can be generated per machine in each time unit
     """
 
@@ -194,15 +194,15 @@ class ThreadSafeGenerator(Generator):
 
         Parameters:
             epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
-            resolution (float): The time unit resolution, to which the other parameters will be tied to.
-                                For example, if configured to 1, IDs will be generated relative to seconds,
-                                and if configured to 0.001, IDs will be relative to milliseconds.
+            resolution (Resolution): The time unit resolution, to which the other parameters will be relative to.
+                                     For example, if specified as SECOND, IDs will be generated relative to seconds,
+                                     and if specified as MILLISECOND, IDs will be relative to milliseconds.
             machine_ids (List[int]): A list of machine identifiers owned by the current instance;
                                     at least one value must be provided; duplicates will be ignored.
             machine_id_bits (int): How many bits are allocated for the machine ID;
-                                only positive integers are valid.
+                                only non-negative integers are valid.
             sequence_bits (int): How many bits are allocated for the local sequence;
-                                only positive integers are valid.
+                                only non-negative integers are valid.
                                 If set to 0, only one identifier can be generated per machine in each time unit
         """
         super().__init__(epoch, resolution, machine_ids, machine_id_bits, sequence_bits)
