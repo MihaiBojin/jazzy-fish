@@ -14,6 +14,7 @@ Classes:
 import hashlib
 from importlib import resources
 import io
+import time
 from pathlib import Path
 from typing import List, Optional, NamedTuple
 
@@ -343,6 +344,47 @@ class WordEncoder:
             if self._max_values[i] > number:
                 break
         return words_needed
+
+
+def check_capacity(
+    generator: "object",
+    encoder: "WordEncoder",
+    min_lifetime_days: float = 3650.0,
+) -> None:
+    """
+    Raises unless the generator's identifiers stay encodable for the given period.
+
+    A Generator and a WordEncoder are designed to compose, but neither knows the
+    other's limits: machine and sequence bits shift the time component left, so
+    every bit halves how long the identifiers fit. A configuration that outgrows
+    its wordlist fails at encode() in production rather than at startup.
+
+    Parameters:
+        generator: A Generator whose identifiers will be encoded.
+        encoder (WordEncoder): The encoder that will encode them.
+        min_lifetime_days (float): How long the pair must keep working.
+
+    Raises:
+        EncoderException: If the generator outgrows the encoder within the period.
+    """
+
+    import datetime
+
+    capacity = encoder.get_max()
+    horizon = time.time() + min_lifetime_days * 86400
+    largest = generator.max_id_at(horizon)  # type: ignore[attr-defined]
+
+    if largest >= capacity:
+        exhausted = generator.exhausts_at(capacity)  # type: ignore[attr-defined]
+        when = datetime.datetime.fromtimestamp(
+            exhausted, tz=datetime.timezone.utc
+        ).date()
+        raise EncoderException(
+            f"This generator outgrows the encoder on {when}, sooner than the "
+            f"{min_lifetime_days:,.0f} days required. Its identifiers reach "
+            f"{largest:,} against a capacity of {capacity:,}. Use a larger wordlist, "
+            f"a coarser resolution, fewer machine/sequence bits, or a later epoch."
+        )
 
 
 def _read_words(from_path: str, package_name: Optional[str] = None) -> List[str]:
