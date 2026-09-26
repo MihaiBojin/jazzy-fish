@@ -99,7 +99,7 @@ class Wordlist:
         Parameters:
             from_path (str): Specifies a directory that contains a wordlist.
             package_name (Optional[str]): If specified, the path will be loaded from a package.
-            word_lists (List[str]): Specifies the order in which the words will be loaded.
+            word_order (List[str]): Specifies the order in which the words will be loaded.
                                     Defaults to DEFAULT_WORD_ORDER.
 
         Returns:
@@ -176,22 +176,22 @@ class WordEncoder:
 
         Parameters:
             wordlist (Wordlist): Word list used to map integers to words.
-            min_sequence_size (int): What is the minimum sequence that should be returned.
-                                    If not provided, it will default to the number
-                                    word lists provided.
+            min_phrase_size (int): What is the minimum sequence that should be returned.
+                                   If not provided, it will default to the number
+                                   of word lists provided.
             separator (str): The separator character used to delimit sequence parts
         """
         self._wordlist = wordlist
         self._max_phrase_size = self._wordlist._max_words_in_phrase
 
-        # If the min_sequence is not provided, default to the maximum available
+        # If min_phrase_size is not provided, default to the maximum available
         if min_phrase_size is None:
             min_phrase_size = self._max_phrase_size
 
-        # Ensure min_sequence_size is valid
+        # Ensure min_phrase_size is valid
         if not (1 <= min_phrase_size <= self._max_phrase_size):
             raise EncoderException(
-                f"min_sequence_size must be between 1 and {self._max_phrase_size}"
+                f"min_phrase_size must be between 1 and {self._max_phrase_size}"
             )
         self._min_phrase_size = min_phrase_size
 
@@ -259,7 +259,7 @@ class WordEncoder:
         Decodes a keyphrase to an integer.
 
         Parameters:
-            words (List[str]): The word sequence to decode.
+            keyphrase (str): The keyphrase to decode.
 
         Returns:
             int: The corresponding integer.
@@ -321,7 +321,7 @@ class WordEncoder:
         Returns the absolute max number that can be encoded by this class.
 
         Returns:
-            int: An integer value that is the upper bound of integers that can be represented with the configured word lists.
+            int: The exclusive upper bound; the largest encodable value is this minus one.
         """
         return self._abs_max
 

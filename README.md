@@ -20,8 +20,9 @@ Each keyphrase also has a fixed-length (character-based) abbreviated form that c
 - `wordlist`: a list of *word part*s that can be combined to generate a large number of *key phrase*s
 - `keyphrase`: a uniquely ordered sequence of words, each of a certain _word part_, which can be mapped to a unique integer identifier
   (e.g., `niftier engine`)
-- `(keyphrase) abbreviations`: a fixed-length (ASCII character) representation of the keyphrase, which can be used
-  as a non-numerical identifier (e.g., `nif-eng`)
+- `(keyphrase) abbreviations`: an ASCII representation of the keyphrase, which can be used
+  as a non-numerical identifier (e.g., `nif-eng`); it is fixed-length when `min_phrase_size`
+  equals the number of word lists, and variable below that
 - `identifier`: a numerical (integer) value that can be used to represent unique entities (e.g., `12040320103821`)
 
 ## Quickstart
@@ -39,7 +40,9 @@ pip install "git+https://github.com/MihaiBojin/jazzy-fish@main#subdirectory=pyth
 The implementation roughly works as follows:
 
 - configure a `Generator` (details below)
-- call `generator.next_id()`, which returns a unique, ever-increasing integer value
+- call `generator.next_id()`, which returns a unique integer value; values increase over time
+  for a single configured machine id, but interleaving several machine ids means consecutive
+  calls are not ordered
 - call `Encoder.encode(id)`, which returns a `keyphrase`
 - decode a _Keyphrase_ into its integer from by calling `Encoder.decode(keyphrase)`
 
@@ -47,8 +50,8 @@ The implementation roughly works as follows:
 
 Integer IDs are constructed by combining 3 parts:
 
-- a `timestamp`: can be relative to the UNIX epoch, or a custom epoch - to maximize the possible solution size;
-  the timestamp can be chosen between seconds and milliseconds, in increments of 1/10ms (1s, 1/10s, 1/100s, 1ms)
+- a `timestamp`: relative to the UNIX epoch, or a custom epoch - to maximize the possible solution size;
+  the resolution is one of `Resolution.MINUTE`, `Resolution.SECOND`, or `Resolution.MILLISECOND`
 - a `machine id`: since it may be necessary to run multiple generators (i.e., in distributed systems), the solution domain can be partitioned by multiple 'machines'
 - a `sequence id`: representing a number of identifiers that can be generated, all things being equal (e.g., same time, same machine)
 
@@ -74,6 +77,33 @@ It can map the following solution domains:
 - 1,205,876,531,200 unique combinations of `adverb verb adjective noun`
 
 Two-word sequences may be impractical for sustained identifier generation, however, three word and four word sequences can sustain 87 and 38,238 years respectively at a rate of 1 identifier generated per second, using a single machine.
+
+### How long a configuration lasts
+
+The combination counts above are a solution space, not a lifetime. The generator packs the
+timestamp, machine id, and sequence into one integer, so every machine or sequence bit shifts
+the timestamp left and halves how long the identifiers stay encodable.
+
+Against the default wordlist, epoch 2024-05-30, millisecond resolution:
+
+| `machine_id_bits` | `sequence_bits` | Years | Exhausted |
+| ----------------- | --------------- | ----- | --------- |
+| 0                 | 0               | 38.24 | 2062-08-15 |
+| 1                 | 1               | 9.56  | 2033-12-18 |
+| 3                 | 1               | 2.39  | 2026-10-19 |
+| 5                 | 5               | 0.04  | 2024-06-12 |
+
+Do not use the UNIX epoch (0) with the default wordlist: milliseconds since 1970 passed its
+1,205,876,531,200 combinations in 2008. Either pick a recent epoch, choose a larger wordlist,
+or use a coarser resolution.
+The same budget expressed as throughput, over a ten-year horizon from a 2024 epoch at
+millisecond resolution:
+
+| wordlist | bits available | generation ceiling |
+| -------- | -------------- | ------------------ |
+| `012_8562fb9` (default) | 1 | 2,000 IDs/second |
+| `024_84f184f` | 4 | 16,000 IDs/second |
+| `01234_f233650` | 6 | 64,000 IDs/second |
 
 If the default wordlists are unsuitable, they can be changed. Consult the [Generate wordlists](#generate-wordlists) section for details.
 
@@ -158,9 +188,9 @@ appropriate values for your use-case.
 
 By default, jazzy-fish ships with the following wordlists:
 
-- [012_8562fb9](python/src/encoder/resources/012_8562fb9)
-- [024_84f184f](python/src/encoder/resources/024_84f184f)
-- [01234_f233650](python/src/encoder/resources/01234_f233650)
+- [012_8562fb9](python/src/jazzy_fish/resources/012_8562fb9)
+- [024_84f184f](python/src/jazzy_fish/resources/024_84f184f)
+- [01234_f233650](python/src/jazzy_fish/resources/01234_f233650)
 
 #### N-per-second generation
 

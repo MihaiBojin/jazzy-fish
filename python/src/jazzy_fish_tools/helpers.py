@@ -27,7 +27,7 @@ def least_similar_words(word_list: List[str], limit: int) -> List[str]:
     if cnt < limit:
         return words
 
-    # Cannot really do much if only 2 words are available
+    # Cannot really do much with fewer than 2 words
     if cnt < 2:
         return words[:limit]
 
