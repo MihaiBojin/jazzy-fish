@@ -67,7 +67,7 @@ def update_resource_lines(name: str, data: Iterable[str]) -> None:
     """Updates a resource file within a package."""
     data_path = str(resources.files(__package__).joinpath(name))
 
-    with open(data_path, "w") as file:
+    with open(data_path, "w", encoding="utf-8") as file:
         file.writelines(data)
 
 
@@ -111,13 +111,6 @@ def is_letter(word):
     return all(char.isascii() and char.isalpha() for char in word.strip())
 
 
-def read_lines(file_path: str) -> List[str]:
-    """Read all lines from file"""
-
-    with open(file_path, "r") as file:
-        return file.readlines()
-
-
 def read_file(from_path: str, package_name: Optional[str] = None) -> List[str]:
     """Reads words from a file that is either on disk or part of the specified package."""
 
@@ -126,4 +119,5 @@ def read_file(from_path: str, package_name: Optional[str] = None) -> List[str]:
     if package_name is not None:
         data_path = str(resources.files(package_name).joinpath(from_path))
 
-    return read_lines(data_path)
+    with open(data_path, "r", encoding="utf-8") as file:
+        return file.readlines()

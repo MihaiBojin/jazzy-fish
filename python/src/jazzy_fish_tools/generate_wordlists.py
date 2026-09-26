@@ -13,8 +13,10 @@ from pathlib import Path
 import random
 from jazzy_fish import encoder
 import time
-from typing import List, Set, Tuple
-import jazzy_fish_tools  # noqa: F401
+from typing import TYPE_CHECKING, List, Set, Tuple
+
+if TYPE_CHECKING:
+    import duckdb
 from jazzy_fish_tools.helpers import (
     DATABASE,
     MAX_LENGTH,
@@ -26,8 +28,6 @@ from jazzy_fish_tools.helpers import (
     read_file,
     reset_location,
 )
-import duckdb
-from duckdb.sqltypes import VARCHAR, INTEGER
 
 # Set to true to only analyze real prefixes (01, 012, 0123, etc.)
 ONLY_SEQ_PREFIXES = False
@@ -39,8 +39,11 @@ PREFIX_LENGTHS: Tuple[int, ...] = (2, 3, 4, 5, 6)
 ALLOWED_WORD_PARTS: Tuple[str, ...] = ("adverb", "adjective", "verb", "noun")
 
 
-def initialize_database() -> duckdb.DuckDBPyConnection:
+def initialize_database() -> "duckdb.DuckDBPyConnection":
     """Reinitialize the database, tables, and UDFs"""
+
+    import duckdb
+    from duckdb.sqltypes import VARCHAR, INTEGER
 
     conn = duckdb.connect(database=DATABASE)
 
@@ -56,7 +59,7 @@ def initialize_database() -> duckdb.DuckDBPyConnection:
 
 
 def categorize_words(
-    conn: duckdb.DuckDBPyConnection,
+    conn: "duckdb.DuckDBPyConnection",
     dictionary_dir: Path,
     char_positions: Tuple[int, ...],
     is_prefix: bool,
@@ -126,6 +129,17 @@ def categorize_words(
 
 
 def main() -> None:
+    # duckdb is an optional extra, but this console script is registered
+    # unconditionally, so a plain 'pip install jazzy-fish' put a command on PATH
+    # that failed with a bare ModuleNotFoundError.
+    try:
+        import duckdb  # noqa: F401
+    except ModuleNotFoundError as exc:  # pragma: no cover
+        raise SystemExit(
+            "generate-wordlists needs the 'cli' extras. "
+            "Install them with: pip install 'jazzy-fish[cli]'"
+        ) from exc
+
     # Define the input dictionary
     parser = argparse.ArgumentParser(description="Specify the dictionary directory")
     parser.add_argument("dir", help="Path to the dictionary directory.")
@@ -272,7 +286,7 @@ def main() -> None:
 
 
 def _save_stats(
-    conn: duckdb.DuckDBPyConnection,
+    conn: "duckdb.DuckDBPyConnection",
     position_in_word: str,
     is_prefix: bool,
     word_parts: List[str],

@@ -57,7 +57,7 @@ class TestDecode(unittest.TestCase):
         for expected, min_words in test_cases:
             encoder = WordEncoder(self.wordlist, min_phrase_size=min_words)
             encoded = encoder.encode(expected)
-            encoded_str = " ".join(encoded.keyphrase)
+            encoded_str = encoded.keyphrase
             self.assertIsNotNone(encoded)
 
             got = encoder.decode(encoded.keyphrase)
