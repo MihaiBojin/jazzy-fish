@@ -64,10 +64,13 @@ class Wordlist:
         self._word_positions = [
             {word.strip(): i for i, word in enumerate(lst)} for lst in dictionary_words
         ]
+        # Abbreviations, in list order. Building this costs nothing: the same
+        # prefixes are computed for _abbr_to_pos below and were previously thrown
+        # away as dict keys, leaving encode() to recompute them on every call.
+        self._prefixes = [[self.to_prefix(word) for word in lst] for lst in self._words]
         # Map of word abbreviations to dictionary positions
         self._abbr_to_pos = [
-            {self.to_prefix(word.strip()): idx for idx, word in enumerate(lst)}
-            for lst in dictionary_words
+            {prefix: idx for idx, prefix in enumerate(lst)} for lst in self._prefixes
         ]
 
         # Check that the provided words match the provided dictionary name
@@ -228,27 +231,27 @@ class WordEncoder:
         words_needed = self._determine_sequence_size(number)
         original_val = number
 
-        # Initialize indexes with -1, to protect against bugs (zeroes would be valid values and could not be distinguished)
-        indexes = [-1] * self._max_phrase_size
-        boundary = self._max_phrase_size - 1
+        # Walk the radices right-to-left, collecting the word and its abbreviation
+        # for each position. Both lists come out reversed and are flipped once at
+        # the end, which avoids allocating a full-width index list per call.
+        words = self._wordlist._words
+        prefixes = self._wordlist._prefixes
+        selected_words = []
+        short_sequence = []
 
-        # Calculate the corresponding indexes for each word
+        boundary = self._max_phrase_size - 1
         for i in range(boundary, boundary - words_needed, -1):
-            # Populate the appropriate index, right-to-left
             list_size = self._radices[i]
-            indexes[i] = number % list_size
+            index = number % list_size
+            selected_words.append(words[i][index])
+            short_sequence.append(prefixes[i][index])
 
             # Calculate the remaining value to be encoded by the next radix
             number //= list_size
 
-        # Calculate the resulting word sequence
-        input = list(
-            zip(self._wordlist._words[-words_needed:], indexes[-words_needed:])
-        )
-        selected_words = [lst[i] for lst, i in input]
+        selected_words.reverse()
+        short_sequence.reverse()
 
-        # Calculate the short identifier
-        short_sequence = [self._wordlist.to_prefix(word) for word in selected_words]
         abbr = self.separator.join(short_sequence)
         keyphrase = self.separator.join(selected_words)
 
