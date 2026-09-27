@@ -29,11 +29,8 @@ classifiers = [
 ] # https://pypi.org/classifiers/
 
 [project.optional-dependencies]
-cli = [
-    # keep-sorted start
-    "duckdb==1.5.5",
-    # keep-sorted end
-]
+# Accepted for compatibility; both CLI commands use the standard library.
+cli = []
 dev = [
     # keep-sorted start
     "pre-commit==4.6.1",
