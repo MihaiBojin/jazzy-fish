@@ -8,7 +8,7 @@ from jazzy_fish.generator import Generator, Resolution
 EPOCH_2024 = datetime(2024, 5, 30, tzinfo=timezone.utc).timestamp()
 
 
-def _encoder(name: str = "012_8562fb9") -> WordEncoder:
+def _encoder(name: str = "012_80a1774") -> WordEncoder:
     return WordEncoder(Wordlist.load(f"resources/{name}", "jazzy_fish"), 4)
 
 
@@ -30,7 +30,7 @@ class TestCapacity(unittest.TestCase):
 
     def test_bits_shorten_the_lifetime_until_it_fails(self):
         # Every machine/sequence bit halves the runway. The configuration used in
-        # test_generator.py exhausts 012_8562fb9 in 2026.
+        # test_generator.py exhausts 012_80a1774 in 2026.
         with self.assertRaises(EncoderException) as ctx:
             check_capacity(
                 _generator(machine_id_bits=3, sequence_bits=1, machine_ids=[1]),
@@ -44,7 +44,7 @@ class TestCapacity(unittest.TestCase):
             check_capacity(_generator(epoch=0.0), _encoder())
 
     def test_a_larger_wordlist_rescues_the_same_configuration(self):
-        check_capacity(_generator(epoch=0.0), _encoder("01234_f233650"))
+        check_capacity(_generator(epoch=0.0), _encoder("01234_011cf27"))
 
     def test_a_coarser_resolution_rescues_the_same_configuration(self):
         check_capacity(_generator(epoch=0.0, resolution=Resolution.SECOND), _encoder())
