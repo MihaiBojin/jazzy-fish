@@ -113,9 +113,9 @@ millisecond resolution:
 
 | wordlist | bits available | generation ceiling |
 | -------- | -------------- | ------------------ |
-| `012_8562fb9` (default) | 1 | 2,000 IDs/second |
-| `024_84f184f` | 4 | 16,000 IDs/second |
-| `01234_f233650` | 6 | 64,000 IDs/second |
+| `012_80a1774` (default) | 1 | 2,000 IDs/second |
+| `024_e4d0f5e` | 4 | 16,000 IDs/second |
+| `01234_011cf27` | 6 | 64,000 IDs/second |
 
 If the default wordlists are unsuitable, they can be changed. Consult the [Generate wordlists](#generate-wordlists) section for details.
 

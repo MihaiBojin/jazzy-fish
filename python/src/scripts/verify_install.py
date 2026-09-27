@@ -10,7 +10,7 @@ def main() -> None:
     epoch = datetime(2024, 5, 30, tzinfo=timezone.utc).timestamp()
 
     # Configure the encoder using one of the default wordlists provided by jazzy-fish
-    wordlist = Wordlist.load("resources/012_8562fb9", "jazzy_fish")
+    wordlist = Wordlist.load("resources/012_80a1774", "jazzy_fish")
     encoder = WordEncoder(wordlist, min_phrase_size=4)
 
     # Configure the generator (single machine, max one value per time unit, millisecond resolution)
