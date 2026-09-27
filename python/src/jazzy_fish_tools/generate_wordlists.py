@@ -25,7 +25,6 @@ from jazzy_fish_tools.helpers import (
     generate_all_prefix_combinations,
     is_letter,
     load_ignored_words,
-    least_similar_words,
     read_file,
     reset_location,
 )
@@ -41,22 +40,11 @@ ALLOWED_WORD_PARTS: Tuple[str, ...] = ("adverb", "adjective", "verb", "noun")
 
 
 def initialize_database() -> "duckdb.DuckDBPyConnection":
-    """Reinitialize the database, tables, and UDFs"""
+    """Open the dictionary database."""
 
     import duckdb
-    from duckdb.sqltypes import VARCHAR, INTEGER
 
-    conn = duckdb.connect(database=DATABASE)
-
-    conn.create_function(
-        "least_similar_words",
-        least_similar_words,
-        parameters=[duckdb.list_type(VARCHAR), INTEGER],
-        return_type=duckdb.list_type(VARCHAR),
-        type="native",
-    )
-
-    return conn
+    return duckdb.connect(database=DATABASE)
 
 
 def categorize_words(
@@ -221,7 +209,7 @@ def main() -> None:
                 )
 
                 # choose the first word for each available prefix
-                sql = f"""SELECT selected_words[1] AS word
+                sql = f"""SELECT selected_word AS word
                           FROM words_by_prefix
                           WHERE position = '{position_in_word}'
                                 AND word_part = '{word_part}'
