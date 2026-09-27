@@ -9,23 +9,20 @@ for their use-case.
 
 import argparse
 from functools import reduce
+from math import prod
 from pathlib import Path
 import random
 from jazzy_fish import encoder
 import time
-from typing import TYPE_CHECKING, List, Set, Tuple
+from typing import List, Tuple
 
-if TYPE_CHECKING:
-    import duckdb
 from jazzy_fish_tools.helpers import (
-    DATABASE,
     MAX_LENGTH,
     MIN_LENGTH,
     OUTPUT_PATH,
     generate_all_prefix_combinations,
     is_letter,
     load_ignored_words,
-    read_file,
     reset_location,
 )
 
@@ -39,152 +36,62 @@ PREFIX_LENGTHS: Tuple[int, ...] = (2, 3, 4, 5, 6)
 ALLOWED_WORD_PARTS: Tuple[str, ...] = ("adverb", "adjective", "verb", "noun")
 
 
-def initialize_database() -> "duckdb.DuckDBPyConnection":
-    """Open the dictionary database."""
-
-    import duckdb
-
-    return duckdb.connect(database=DATABASE)
-
-
-def categorize_words(
-    conn: "duckdb.DuckDBPyConnection",
-    dictionary_dir: Path,
-    char_positions: Tuple[int, ...],
-    is_prefix: bool,
-    seen_words: Set[str],
-):
-    position_in_word = "".join(map(str, char_positions))
-
-    results: List[Tuple[int, str, bool, str, str, str]] = list()
-
-    # Read all word parts in the dictionary
-    with open(dictionary_dir, "r") as file:
-        # Ensure the file is named correctly
-        word_part = Path(dictionary_dir).stem
-        if word_part not in ALLOWED_WORD_PARTS:
+def _load_words(directory: Path) -> dict[str, List[str]]:
+    """Read valid words, assigning duplicates to the first file by name."""
+    words: dict[str, List[str]] = {part: [] for part in ALLOWED_WORD_PARTS}
+    seen = set(load_ignored_words())
+    for file in sorted(path for path in directory.iterdir() if path.is_file()):
+        part = file.stem
+        if part not in ALLOWED_WORD_PARTS:
             raise ValueError(
-                f"All files in a dictionary dir must match one of the ALLOWED_WORD_PARTS; {word_part} is invalid"
+                f"All files in a dictionary dir must match one of the ALLOWED_WORD_PARTS; {part} is invalid"
             )
+        with file.open(encoding="utf-8") as source:
+            for line in source:
+                word = line.strip()
+                if not MIN_LENGTH <= len(word) <= MAX_LENGTH:
+                    continue
+                if not is_letter(word) or word in seen:
+                    continue
+                seen.add(word)
+                words[part].append(word)
 
-        # Read all words in file
-        for line in file:
-            # Remove extraneous characters (i.e., '\n')
-            word = line.strip()
+    # Prefix exclusions apply across every word part and position combination.
+    prefixes = {
+        word[:length]
+        for entries in words.values()
+        for word in entries
+        for length in range(MIN_LENGTH, len(word))
+    }
+    return {
+        part: [word for word in entries if word not in prefixes]
+        for part, entries in words.items()
+    }
 
-            # Respect word sizes
-            if len(word) < MIN_LENGTH or len(word) > MAX_LENGTH:
-                continue
 
-            # Only ASCII letters. clean-dictionary applies the same filter, but it
-            # is a separate command and nothing requires running it first, so a raw
-            # dictionary reaches this loop with apostrophes and accents intact.
-            if not is_letter(word):
-                continue
-
-            # Skip words that were already seen
-            # to avoid generating sentences of the same token
-            if word in seen_words:
-                continue
-            seen_words.add(word)
-
-            # Skip words shorter than the required prefix position
-            if len(word) <= char_positions[-1]:
-                continue
-
-            # Compute the actual prefix
-            prefix_chars = "".join([word[p] for p in char_positions])
-
-            # Append the entry
-            results.append(
-                (
-                    len(position_in_word),  # prefix length
-                    position_in_word,
-                    # whether the prefix starts at the first char (012, etc.) or is
-                    # a non-contiguous sequence
-                    is_prefix,
-                    prefix_chars,
-                    word,
-                    word_part,
-                )
-            )
-
-    # Bind the values rather than splicing them into the statement: a word holding
-    # an apostrophe used to produce a malformed INSERT and abort the run.
-    if results:
-        conn.executemany("INSERT INTO words VALUES (?, ?, ?, ?, ?, ?);", results)
+def _select_words(words: List[str], positions: Tuple[int, ...]) -> List[str]:
+    """Select the alphabetically first word for each abbreviation."""
+    selected: dict[str, str] = {}
+    for word in words:
+        if len(word) <= positions[-1]:
+            continue
+        abbreviation = "".join(word[position] for position in positions)
+        if abbreviation not in selected or word < selected[abbreviation]:
+            selected[abbreviation] = word
+    return sorted(selected.values())
 
 
 def main() -> None:
-    # duckdb is an optional extra, but this console script is registered
-    # unconditionally, so a plain 'pip install jazzy-fish' put a command on PATH
-    # that failed with a bare ModuleNotFoundError.
-    try:
-        import duckdb  # noqa: F401
-    except ModuleNotFoundError as exc:  # pragma: no cover
-        raise SystemExit(
-            "generate-wordlists needs the 'cli' extras. "
-            "Install them with: pip install 'jazzy-fish[cli]'"
-        ) from exc
-
     # Define the input dictionary
     parser = argparse.ArgumentParser(description="Specify the dictionary directory")
     parser.add_argument("dir", help="Path to the dictionary directory.")
     args = parser.parse_args()
 
-    # Clean any previous results
-    reset_location(Path(DATABASE).parent)
-
-    # This function uses DuckDB to store the analyzed words/prefixes.
-    # Initialize a new DuckDB database
-    conn = initialize_database()
-
-    # Re/create the table structure for holding interim data
-    sql = "".join(read_file("resources/process/ct_words.sql", package_name=__package__))
-    conn.execute(sql)
-
-    print("Processing word lists...")
+    reset_location(Path(OUTPUT_PATH))
     start_time = time.time()
-
-    # Neither of these depends on the prefix being processed, and the loop below
-    # runs 57 times.
-    ignored_words = load_ignored_words()
-    # sorted(), not iterdir() order: a word appearing in two word parts is claimed
-    # by whichever file is read first, so filesystem order would decide the
-    # contents of the generated wordlists -- and therefore their checksums.
-    # dictionary/5 has 1,066 such words.
-    directory = Path(args.dir)
-    files = sorted(f for f in directory.iterdir() if f.is_file())
-
-    for prefix_length in PREFIX_LENGTHS:
-        for char_positions in generate_all_prefix_combinations(prefix_length):
-            # Skip non-sequential prefixes, if needed
-            is_prefix = char_positions == tuple(range(0, prefix_length))
-            if ONLY_SEQ_PREFIXES and not is_prefix:
-                continue
-
-            print(f"Processing {char_positions}")
-
-            # Avoid duplicate words and also globally exclude ignored words
-            seen_words: Set[str] = set(ignored_words)
-
-            for file in files:
-                categorize_words(conn, file, char_positions, is_prefix, seen_words)
-
-    end_time = time.time()
-    print(f"Processed word lists in: {end_time - start_time:.2f} seconds\n")
-
-    # Process the words table and extract words for each prefix
-    print("Extracting unique words, grouped by prefix...")
-    sql = "".join(
-        read_file("resources/process/process_words.sql", package_name=__package__)
-    )
-    conn.execute(sql)
-    print("Unique words extracted. (TABLE `words_by_prefix`)")
+    words = _load_words(Path(args.dir))
 
     print("Generating final word lists...")
-    reset_location(Path(f"{OUTPUT_PATH}/processed"))
-
     for prefix_length in PREFIX_LENGTHS:
         for char_positions in generate_all_prefix_combinations(prefix_length):
             # Skip non-sequential prefixes, if needed
@@ -208,25 +115,17 @@ def main() -> None:
                     f"Generating {position_in_word}, word type '{word_part}', word length {word_size}..."
                 )
 
-                # choose the first word for each available prefix
-                sql = f"""SELECT selected_word AS word
-                          FROM words_by_prefix
-                          WHERE position = '{position_in_word}'
-                                AND word_part = '{word_part}'
-                          ORDER BY 1;"""
-                result = conn.execute(sql).fetchall()
+                selected_words = _select_words(words[word_part], char_positions)
 
                 # Store the selected words
                 outfile = f"{wordlist_out_dir}/{word_part}.txt"
                 with open(outfile, "w", encoding="utf-8") as out:
-                    # join rather than write-then-truncate: with no rows,
-                    # truncate(tell() - 1) became truncate(-1) and raised OSError.
-                    out.write("\n".join(row[0] for row in result))
+                    out.write("\n".join(selected_words))
                 print(f"Saved '{outfile}'\n")
 
                 # Store the wordlists and stats
                 wordlist_files.append(outfile)
-                stats.append((word_part, len(result)))
+                stats.append((word_part, len(selected_words)))
 
             # Generate stats, choosing the top 2/3/4 word parts by total choices
             print(f"Storing stats for 2/3/4 words for {position_in_word}...\n")
@@ -234,7 +133,9 @@ def main() -> None:
 
             for take in (2, 3, 4):
                 selected = [f[0] for f in ordered[-take:]]
-                _save_stats(conn, position_in_word, is_prefix, selected, wordlist_files)
+                _save_stats(
+                    dict(stats), position_in_word, is_prefix, selected, wordlist_files
+                )
 
             # Generate checksums
             checksums = list()
@@ -269,7 +170,7 @@ def main() -> None:
 
 
 def _save_stats(
-    conn: "duckdb.DuckDBPyConnection",
+    word_counts: dict[str, int],
     position_in_word: str,
     is_prefix: bool,
     word_parts: List[str],
@@ -278,56 +179,16 @@ def _save_stats(
     """Store statistics about the selected words"""
 
     parts = ", ".join([f"'{w}'" for w in word_parts])
-    sql = f"""WITH
-            prefix_stats AS (
-                SELECT
-                    position,
-                    word_part,
-                    COUNT(DISTINCT identifier) AS single_words_per_prefix,
-                    SUM(max_words_for_prefix) AS total_words
-                FROM
-                    words_by_prefix
-                WHERE
-                    position = '{position_in_word}'
-                    AND word_part IN ({parts})
-                GROUP BY ALL
-            ),
-            total AS (
-                SELECT
-                    PRODUCT (single_words_per_prefix) AS total
-                FROM
-                    prefix_stats
-                GROUP BY
-                    ALL
-            )
-        SELECT
-            position,
-            word_part,
-            single_words_per_prefix AS total
-        FROM
-            prefix_stats
-        UNION ALL
-        SELECT
-            'Total',
-            '',
-            total
-        FROM
-            total
-        -- Without this the row order is whatever the parallel scan produced, so
-        -- regenerating an unchanged wordlist rewrote its stats file.
-        ORDER BY
-            1, 2;
-    """
-    result = conn.execute(sql).fetchall()
-
-    def _r0(row: List[str]) -> str:
-        return row[0] or ""
-
-    data = [f"{_r0(row):10s} {row[1]:12s} {int(row[2] or 0):,d}\n" for row in result]
+    counts = [
+        (part, word_counts[part]) for part in sorted(word_parts) if word_counts[part]
+    ]
+    # Floating-point multiplication preserves existing statistics rounding.
+    total = int(prod((count for _, count in counts), start=1.0)) if counts else 0
+    data = [f"{position_in_word:10s} {part:12s} {count:,d}\n" for part, count in counts]
+    data.append(f"{'Total':10s} {'':12s} {total:,d}\n")
 
     outfile = f"{OUTPUT_PATH}/processed/{position_in_word}/stats_{len(word_parts)}.txt"
     with open(outfile, "w") as out:
-        total = int(result[-1][2] or 0)
         years_s = total / 31536000
         years_ms = total / 31536000000
 

@@ -233,14 +233,15 @@ tag. Prefer tagging; reach for this only when the workflow cannot run.
 
 The [jazzy_fish_tools](src/jazzy_fish_tools) package contains code that can process dictionaries and generate all combinations of wordlists, abbreviations of a given length, and character positions chosen for the abbreviation. These can help users infer the best choice depending on their use-case.
 
-First, install CLI dependencies:
+Install the package to use both CLI commands:
 
 ```shell
-pip install jazzy-fish[cli]
+pip install jazzy-fish
 ```
 
 Then, call [generate-wordlists PATH_TO_DICTIONARY_DIR](src/jazzy_fish_tools/generate_wordlists.py) to generate all possible combinations.
-The resulting wordlists will be stored in `out/processed`.
+The resulting wordlists, checksums, and statistics are stored in `out/processed`.
+Both commands use the Python standard library. The `[cli]` extra is accepted for installation compatibility and installs no additional dependencies.
 
 If you want to generate wordlists using a dictionary of your choosing, use the [clean-dictionary PATH_TO_DICTIONARY_DIR](src/jazzy_fish_tools/clean_dictionary.py)
 script to sanitize the inputs (in-place). Consult one of the included dictionaries ([dictionary/](dictionary/)) to determine the required file structure.

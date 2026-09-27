@@ -16,7 +16,6 @@ MIN_LENGTH: int = 4
 MAX_LENGTH: int = 8
 MAX_PREFIX_CHARS: int = 6
 OUTPUT_PATH: str = "out"
-DATABASE: str = f"{OUTPUT_PATH}/dictionary.duckdb"
 
 
 # generate prefix combinations (MAX_CHARS, k) as the list of all possible prefix positions
@@ -43,7 +42,6 @@ def reset_location(location: Path, remove_dir=True):
 
     if remove_dir:
         try:
-            # Remove any existing databases
             shutil.rmtree(location)
         except FileNotFoundError:
             pass
