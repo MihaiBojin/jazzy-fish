@@ -20,10 +20,8 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  # Test pull requests; tag and publish are skipped
+  # Test pull requests, including stacks; tag and publish are skipped.
   pull_request:
-    branches:
-      - main
   # Test, and release when the version has changed
   push:
     branches:
@@ -58,6 +56,9 @@ jobs:
         working-directory: python
         run: uv run pre-commit run --all-files
 
+      - name: Install the release tools
+        uses: releasetools/cli@3a6e7e874ce96f8782143ddaa380da57ebc597d8 # v0.4.0
+
       - name: Run tests
         working-directory: python
         run: uv run pytest tests
@@ -89,6 +90,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install the release tools
+        uses: releasetools/cli@3a6e7e874ce96f8782143ddaa380da57ebc597d8 # v0.4.0
 
       - name: Tag the release
         id: tag
@@ -137,7 +141,7 @@ jobs:
           enable-cache: true
 
       - name: Install the release tools
-        uses: releasetools/cli@v0
+        uses: releasetools/cli@3a6e7e874ce96f8782143ddaa380da57ebc597d8 # v0.4.0
 
       - name: Check the tag matches the project version
         working-directory: python

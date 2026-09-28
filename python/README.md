@@ -151,6 +151,18 @@ After running this command, you can examine all outputs in the `out/processed` d
 
 Unless you are interested in contributing to this code (or are curious about this library's development processes), you can stop reading here.
 
+The tests, Docker image scripts and release scripts require
+[releasetools/cli](https://github.com/releasetools/cli) v0.4.0 or newer:
+
+```shell
+brew install releasetools/tap/releasetools-cli
+rt version
+```
+
+CI installs v0.4.0 through the CLI's GitHub Action. A clean Docker build uses
+the highest release tag on HEAD, without its `v` prefix, or the short commit
+SHA when no release tag exists. A dirty build uses the SHA with `-dirty`.
+
 ### Publishing
 
 #### GitHub-based version publishing
