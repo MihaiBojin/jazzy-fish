@@ -2,19 +2,21 @@
 
 import argparse
 import ast
-import gzip
 import hashlib
 import json
-import os
 import random
-import shutil
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "pr99"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark as bench
+import environment
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = "python/src/jazzy_fish/generator.py"
 
 OWNERSHIP = {
     "opt_in": "shared ThreadSafeGenerator",
@@ -38,31 +40,34 @@ def positive(value: str) -> int:
     return number
 
 
-def probe(executable: str) -> tuple[str, dict[str, Any]]:
-    resolved = shutil.which(executable)
-    if resolved is None:
-        raise ValueError(f"Python executable not found: {executable}")
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-    env.pop("PYTHON_GIL", None)
+def python_version(value: str) -> str:
+    match = re.fullmatch(r"3\.(\d+)(?:\.\d+)?t?", value)
+    if match is None or int(match[1]) < 12:
+        raise argparse.ArgumentTypeError(
+            "use a Python version >= 3.12, such as 3.14.7 or 3.14.7t"
+        )
+    return value
+
+
+def probe(executable: str) -> dict[str, Any]:
     completed = subprocess.run(
         [
-            resolved,
+            executable,
+            "-I",
             "-c",
             "import json, runpy, sys; print(json.dumps(runpy.run_path(sys.argv[1])['runtime_metadata']()))",
             str(Path(bench.__file__).resolve()),
         ],
-        env=env,
+        env=environment.clean_environment(),
         capture_output=True,
         text=True,
         check=True,
         timeout=30,
     )
     metadata = json.loads(completed.stdout)
-    if tuple(map(int, metadata["version"].split()[0].split(".")[:2])) < (3, 12):
-        raise ValueError(f"Python 3.12 or newer is required: {executable}")
     if metadata["free_threaded_build"] and metadata["gil_enabled"]:
-        raise ValueError(f"Free-threaded Python has its GIL enabled: {executable}")
-    return str(Path(resolved).absolute()), metadata
+        raise ValueError("Free-threaded Python has its GIL enabled")
+    return metadata
 
 
 def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -76,7 +81,7 @@ def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
                 common = {
                     "label": label,
                     "implementation": implementation,
-                    "revision": "file:" + source["path"],
+                    "source": source["path"],
                     "kind": "timing",
                     "repeat": repeat,
                     "calls": config["calls"],
@@ -110,7 +115,7 @@ def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
                             {
                                 "label": label,
                                 "implementation": implementation,
-                                "revision": "file:" + source["path"],
+                                "source": source["path"],
                                 "kind": "correctness",
                                 "profile": "threaded",
                                 "variant": variant,
@@ -134,13 +139,9 @@ def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def write_report(output: Path, config: dict[str, Any]) -> None:
-    raw = output / "results.jsonl"
-    contents = (
-        raw.read_text()
-        if raw.exists()
-        else gzip.decompress(raw.with_suffix(".jsonl.gz").read_bytes()).decode()
-    )
-    rows = [json.loads(line) for line in contents.splitlines()]
+    rows = [
+        json.loads(line) for line in (output / "results.jsonl").read_text().splitlines()
+    ]
     if len(rows) != len(config["jobs"]):
         raise ValueError("Incomplete benchmark results")
     for index, row in enumerate(rows):
@@ -247,29 +248,30 @@ def write_report(output: Path, config: dict[str, Any]) -> None:
         "",
         f"Each timing case has {config['repeats']} fresh-process samples of {config['calls']:,} calls. The measured path is warmed with 20,000 calls. Private generators and factory bindings are warmed inside each caller before timing. Threaded calls are divided evenly; a barrier starts the clock and the last caller stops it. Thread creation, imports, and uniqueness checks are outside timing. Cyclic GC is disabled during measurement. Correctness trials retain IDs, run separately, and include extra shared-generator checks with a 1 µs thread-switch interval. Their timings do not contribute to throughput estimates.",
         "",
-        "The direct profiles use millisecond, second, and minute resolution with one machine, plus a millisecond profile with four machine IDs. The threaded profile uses millisecond resolution and 22 sequence bits. Its machine bit width fits the largest tested count and is identical across sources and ownership modes. Each worker's machine ID is its zero-based index in private mode; shared mode uses machine ID zero. Factory mode supplies IDs zero through callers minus one and sets threads to the caller count. Full configuration and runtime metadata are in results.jsonl.",
+        "The direct profiles use millisecond, second, and minute resolution with one machine, plus a millisecond profile with four machine IDs. The threaded profile uses millisecond resolution and 22 sequence bits. Its machine bit width fits the largest tested count and is identical across sources and ownership modes. Each worker's machine ID is its zero-based index in private mode; shared mode uses machine ID zero. Factory mode supplies IDs zero through callers minus one and sets threads to the caller count. Full configuration and runtime metadata are in results.jsonl; interpreter and checkout paths are omitted.",
         "",
         "The CPU count uses process availability when supported, then CPU affinity, then the operating system's logical CPU count. Affinity and frequency are not controlled by this benchmark. Run without competing workloads for less variation. Free-threaded builds are checked after every trial to ensure the GIL remains disabled.",
         "",
-        "config.json records the exact jobs and source hashes; snapshots/ preserves the measured source. results.jsonl contains every raw trial; summary.json contains per-case medians, ranges, and median absolute deviations. A nonzero exit status indicates an incomplete run or a correctness failure. Timing differences never fail a test.",
+        "config.json records Python requests, the uv version, exact jobs, and source hashes; snapshots/ preserves the measured source. results.jsonl contains every raw trial; summary.json contains per-case medians, ranges, and median absolute deviations. A nonzero exit status indicates an incomplete run or a correctness failure. Timing differences never fail a test.",
     ]
     (output / "README.md").write_text("\n".join(lines) + "\n")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--python",
         action="append",
         dest="pythons",
-        help="Python executable; repeat for multiple builds (default: current interpreter)",
+        type=python_version,
+        help="Python version to download; repeat to compare builds (suffix t for free-threaded)",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--threads",
         nargs="+",
         type=positive,
-        help="Thread counts to compare with one worker (default: 6)",
+        help="Caller counts to compare with one (default: 6)",
     )
     group.add_argument(
         "--sweep",
@@ -282,18 +284,16 @@ def main() -> None:
     )
     parser.add_argument("--correctness-calls", type=positive, default=1_000_000)
     parser.add_argument(
-        "--baseline", help="Optional source snapshot path or local git revision"
+        "--baseline", help="Optional generator source file or local git revision"
     )
     parser.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="New directory for raw measurements and the report",
+        "--output", type=Path, required=True, help="New results directory"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     output = args.output.resolve()
     if output.exists():
-        parser.error(f"Output already exists: {output}; choose a new directory")
+        parser.error("Output already exists; choose a new directory")
+    versions = list(dict.fromkeys(args.pythons or environment.DEFAULT_PYTHONS))
     config: dict[str, Any] = {
         "interpreters": {},
         "runtimes": {},
@@ -303,69 +303,84 @@ def main() -> None:
         "calls": args.calls,
         "correctness_calls": args.correctness_calls,
         "seed": 990928,
+        "setup": {
+            "uv_version": environment.UV_VERSION,
+            "python_requests": versions,
+            "runtime_dependencies": [],
+            "environment": "fresh temporary installations and virtual environments",
+        },
     }
     try:
-        for executable in args.pythons or [sys.executable]:
-            resolved, metadata = probe(executable)
-            if resolved in config["interpreters"].values():
-                continue
-            label = metadata["version"].split()[0] + (
-                "-gil" if metadata["gil_enabled"] else "-free"
-            )
-            if label in config["interpreters"]:
-                label += f"-{len(config['interpreters']) + 1}"
-            counts = (
-                list(range(1, max(1, metadata["available_cpus"] - 1) + 1))
-                if args.sweep
-                else sorted({1, *(args.threads or [6])})
-            )
-            if max(counts) > min(args.calls, args.correctness_calls):
-                raise ValueError(
-                    "Calls per trial must be at least the largest thread count"
-                )
-            config["interpreters"][label] = resolved
-            config["runtimes"][label] = metadata
-            config["thread_counts"][label] = counts
-        sources = {"current": (bench.ROOT / bench.SOURCE).read_bytes()}
+        sources = {"current": (ROOT / SOURCE).read_bytes()}
         if args.baseline:
             path = Path(args.baseline)
             sources["baseline"] = (
                 path.read_bytes()
                 if path.is_file()
                 else subprocess.check_output(
-                    ["git", "show", f"{args.baseline}:{bench.SOURCE}"], cwd=bench.ROOT
+                    ["git", "show", f"{args.baseline}:{SOURCE}"], cwd=ROOT
                 )
             )
-        output.mkdir(parents=True)
-        (output / "snapshots").mkdir()
-        for name, source in sources.items():
-            path = output / "snapshots" / f"{name}.py.txt"
-            path.write_bytes(source)
-            generator_class = next(
-                node
-                for node in ast.parse(source).body
-                if isinstance(node, ast.ClassDef) and node.name == "Generator"
+        with environment.provision(versions) as installed:
+            interpreters = {}
+            for version, executable in installed.items():
+                metadata = probe(executable)
+                label = metadata["version"].split()[0] + (
+                    "-gil" if metadata["gil_enabled"] else "-free"
+                )
+                if label in interpreters:
+                    continue
+                counts = (
+                    list(range(1, max(1, metadata["available_cpus"] - 1) + 1))
+                    if args.sweep
+                    else sorted({1, *(args.threads or [6])})
+                )
+                if max(counts) > min(args.calls, args.correctness_calls):
+                    raise ValueError(
+                        "Calls per trial must be at least the largest caller count"
+                    )
+                interpreters[label] = executable
+                config["interpreters"][label] = version
+                config["runtimes"][label] = metadata
+                config["thread_counts"][label] = counts
+            output.mkdir(parents=True)
+            (output / "snapshots").mkdir()
+            for name, source in sources.items():
+                path = Path("snapshots") / f"{name}.py.txt"
+                (output / path).write_bytes(source)
+                generator_class = next(
+                    node
+                    for node in ast.parse(source).body
+                    if isinstance(node, ast.ClassDef) and node.name == "Generator"
+                )
+                config["sources"][name] = {
+                    "path": path.as_posix(),
+                    "sha256": hashlib.sha256(source).hexdigest(),
+                    "has_factory": any(
+                        isinstance(node, ast.FunctionDef) and node.name == "threadsafe"
+                        for node in generator_class.body
+                    ),
+                }
+            config["jobs"] = make_jobs(config)
+            (output / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+            print(
+                f"Running {len(config['jobs'])} trials across {len(interpreters)} Python builds.",
+                flush=True,
             )
-            config["sources"][name] = {
-                "path": str(path),
-                "sha256": hashlib.sha256(source).hexdigest(),
-                "has_factory": any(
-                    isinstance(node, ast.FunctionDef) and node.name == "threadsafe"
-                    for node in generator_class.body
-                ),
-            }
-        config["jobs"] = make_jobs(config)
-        config_path = output / "config.json"
-        config_path.write_text(json.dumps(config, indent=2) + "\n")
-        print(
-            f"Running {len(config['jobs'])} trials across {len(config['interpreters'])} Python builds.",
-            flush=True,
-        )
-        bench.run(config_path, output / "results.jsonl")
-        write_report(output, config)
+            bench.run(
+                config,
+                output / "results.jsonl",
+                interpreters,
+                environment.clean_environment(),
+            )
+            write_report(output, config)
+    except KeyboardInterrupt:
+        parser.exit(130, "Benchmark interrupted; temporary environments removed.\n")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Benchmark failed: {error}\n")
-    print(f"Report: {output / 'README.md'}")
+    print(
+        "Finished; report written to the requested output directory. Temporary environments removed."
+    )
 
 
 if __name__ == "__main__":

@@ -1,14 +1,11 @@
-"""Measure generator calls and check uniqueness at the exact PR revisions."""
+"""Measure generator calls and check uniqueness in isolated worker processes."""
 
-import argparse
 import gc
-import gzip
 import hashlib
 import importlib.util
 import json
 import os
 import platform
-import random
 import statistics
 import subprocess
 import sys
@@ -21,12 +18,6 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-HERE = Path(__file__).resolve().parent
-BASE = "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761"
-HEAD = "7cc9e250eb01f6434ceeb1224475a2b10953777d"
-SOURCE = "python/src/jazzy_fish/generator.py"
-VARIANTS = ("unlocked", "opt_in", "always_locked")
 PROFILES = {
     "millisecond": ("MILLISECOND", [0], 0, 22),
     "four_machines": ("MILLISECOND", [0, 1, 2, 3], 2, 12),
@@ -36,18 +27,12 @@ PROFILES = {
 }
 
 
-def load_module(revision: str) -> tuple[ModuleType, str]:
-    if revision.startswith("file:"):
-        source = (ROOT / revision[5:]).read_bytes()
-    else:
-        source = subprocess.check_output(
-            ["git", "show", f"{revision}:{SOURCE}"], cwd=ROOT
-        )
-    name = "generator_" + revision[:8]
-    spec = importlib.util.spec_from_loader(name, loader=None)
+def load_module(source_path: str) -> tuple[ModuleType, str]:
+    source = Path(source_path).read_bytes()
+    spec = importlib.util.spec_from_loader("measured_generator", loader=None)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
-    exec(compile(source, f"{revision}/{SOURCE}", "exec"), module.__dict__)  # noqa: S102 - Load the inspected source snapshot.
+    exec(compile(source, Path(source_path).name, "exec"), module.__dict__)  # noqa: S102 - Execute the selected generator snapshot.
     return module, hashlib.sha256(source).hexdigest()
 
 
@@ -66,7 +51,6 @@ def available_cpus() -> int:
 def runtime_metadata() -> dict[str, Any]:
     return {
         "version": sys.version,
-        "executable": sys.executable,
         "platform": platform.platform(),
         "machine": platform.machine(),
         "logical_cpus": os.cpu_count(),
@@ -81,8 +65,7 @@ def runtime_metadata() -> dict[str, Any]:
 
 def execute(job: dict[str, Any]) -> dict[str, Any]:
     variant = job["variant"]
-    revision = job.get("revision", HEAD if variant == "always_locked" else BASE)
-    module, source_hash = load_module(revision)
+    module, source_hash = load_module(job["source"])
     constructor = (
         module.ThreadSafeGenerator if variant == "opt_in" else module.Generator
     )
@@ -171,7 +154,6 @@ def execute(job: dict[str, Any]) -> dict[str, Any]:
     result = {
         **job,
         "runtime": runtime_metadata(),
-        "revision": revision,
         "source_sha256": source_hash,
         "elapsed_ns": elapsed,
         "cpu_ns": cpu_elapsed,
@@ -201,104 +183,30 @@ def execute(job: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def jobs_for(config: dict[str, Any]) -> list[dict[str, Any]]:
-    jobs = []
-    for repeat in range(config["repeats"]):
-        round_jobs = []
-        for label in config["interpreters"]:
-            for profile in ("millisecond", "four_machines", "second", "minute"):
-                for variant in VARIANTS:
-                    round_jobs.append(
-                        {
-                            "label": label,
-                            "kind": "timing",
-                            "profile": profile,
-                            "variant": variant,
-                            "threads": 1,
-                            "calls": config["single_calls"],
-                            "repeat": repeat,
-                        }
-                    )
-            for threads in config["thread_counts"]:
-                for variant in (*VARIANTS, "private"):
-                    round_jobs.append(
-                        {
-                            "label": label,
-                            "kind": "timing",
-                            "profile": "threaded",
-                            "variant": variant,
-                            "threads": threads,
-                            "calls": config["threaded_calls"],
-                            "repeat": repeat,
-                            "worker_thread": True,
-                        }
-                    )
-        random.Random(config["seed"] + repeat).shuffle(round_jobs)
-        jobs.extend(round_jobs)
-    for repeat in range(config["correctness_repeats"]):
-        for label in config["interpreters"]:
-            for threads in config["thread_counts"]:
-                for variant in (*VARIANTS, "private"):
-                    jobs.append(
-                        {
-                            "label": label,
-                            "kind": "correctness",
-                            "profile": "threaded",
-                            "variant": variant,
-                            "threads": threads,
-                            "calls": config["correctness_calls"],
-                            "repeat": repeat,
-                            "worker_thread": True,
-                        }
-                    )
-    for label in config["interpreters"]:
-        for threads in config["thread_counts"][1:]:
-            for variant in VARIANTS:
-                jobs.append(
-                    {
-                        "label": label,
-                        "kind": "correctness",
-                        "profile": "threaded",
-                        "variant": variant,
-                        "threads": threads,
-                        "calls": config["stress_calls"],
-                        "repeat": 0,
-                        "switch_interval": 1e-6,
-                        "worker_thread": True,
-                    }
-                )
-    return jobs
-
-
-def run(config_path: Path, output: Path) -> None:
-    config = json.loads(config_path.read_text())
-    jobs = config["jobs"] if "jobs" in config else jobs_for(config)
-    completed = set()
-    if output.exists():
-        completed = {
-            json.loads(line)["job_index"] for line in output.read_text().splitlines()
-        }
+def run(
+    config: dict[str, Any],
+    output: Path,
+    interpreters: dict[str, str],
+    environment: dict[str, str],
+) -> None:
     started = time.monotonic()
-    for index, job in enumerate(jobs):
-        if index in completed:
-            continue
-        env = dict(os.environ, PYTHONHASHSEED="0", PYTHONDONTWRITEBYTECODE="1")
-        env.pop("PYTHON_GIL", None)
+    for index, job in enumerate(config["jobs"]):
         process = subprocess.run(
             [
-                config["interpreters"][job["label"]],
+                interpreters[job["label"]],
+                "-I",
                 str(Path(__file__).resolve()),
-                "worker",
                 json.dumps(job),
             ],
+            cwd=output.parent,
             check=False,
             capture_output=True,
             text=True,
-            env=env,
+            env=environment,
             timeout=180,
         )
         if process.returncode:
-            raise RuntimeError(f"{job}\n{process.stdout}\n{process.stderr}")
+            raise RuntimeError(f"Trial {index} failed: {process.stderr}")
         result = json.loads(process.stdout)
         if (
             result["runtime"]["free_threaded_build"]
@@ -309,9 +217,9 @@ def run(config_path: Path, output: Path) -> None:
         result["utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         with output.open("a") as stream:
             stream.write(json.dumps(result, sort_keys=True) + "\n")
-        if index % 10 == 0 or index + 1 == len(jobs):
+        if index % 10 == 0 or index + 1 == len(config["jobs"]):
             print(
-                f"{index + 1}/{len(jobs)} {time.monotonic() - started:.0f}s "
+                f"{index + 1}/{len(config['jobs'])} {time.monotonic() - started:.0f}s "
                 f"{job['label']} {job['variant']} {job['threads']} threads "
                 f"{result['ns_per_id']:.1f} ns/id",
                 flush=True,
@@ -357,25 +265,5 @@ def summarize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return summary
 
 
-def summarize(path: Path) -> None:
-    contents = (
-        gzip.decompress(path.read_bytes()).decode()
-        if path.suffix == ".gz"
-        else path.read_text()
-    )
-    summary = summarize_rows([json.loads(line) for line in contents.splitlines()])
-    print(json.dumps(summary, indent=2))
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("worker", "run", "summarize"))
-    parser.add_argument("input")
-    parser.add_argument("--output", type=Path, default=HERE / "results.jsonl")
-    args = parser.parse_args()
-    if args.action == "worker":
-        print(json.dumps(execute(json.loads(args.input))))
-    elif args.action == "run":
-        run(Path(args.input), args.output)
-    else:
-        summarize(Path(args.input))
+    print(json.dumps(execute(json.loads(sys.argv[1]))))

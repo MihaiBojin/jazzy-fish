@@ -136,8 +136,9 @@ the encoder's ID budget; choose them using the capacity helpers below.
 Choose the worker count by measuring the intended workload. Standard CPython's
 GIL limits CPU parallelism. Free-threaded Python can execute separate groups in
 parallel, while calls sharing one group serialize. The
-[portable benchmark](../benchmarks/README.md) accepts multiple Python executables
-and tests one through the available CPU count minus one with `--sweep`. Six is
+[portable benchmark](../benchmarks/README.md) downloads the requested Python
+versions into fresh temporary environments and tests one through the available
+CPU count minus one with `--sweep`. Six is
 the factory default; the best count depends on the machine and workload.
 
 ### How long a configuration lasts

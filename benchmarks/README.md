@@ -1,207 +1,185 @@
-# Run the generator benchmark on your machine
+# Generator benchmarks
 
-From a source checkout, run with Python 3.12 or newer:
+Run from a source checkout with Python 3.12 or newer, including its `venv` and
+`ensurepip` modules, and network access:
 
 ```sh
-python3.14 benchmarks/run.py --output out/benchmark
+python3 benchmarks/run.py --output out/benchmark
 ```
 
-The default compares one and six callers on the current interpreter. It measures
-unlocked single-thread generation, a shared `ThreadSafeGenerator`, separate
-unlocked generators with disjoint machine IDs, and `Generator.threadsafe` with
-one group per caller. Each timing case has seven fresh processes with one million
-calls per process. Correctness runs separately and fails on duplicates or non-increasing
-IDs within a worker.
+Every invocation creates a new temporary directory, installs pinned `uv` into a
+bootstrap virtual environment, downloads the requested Python builds, and creates
+a separate virtual environment for each. Interpreter installations and download
+caches stay inside that directory. The runner removes them on success, failure,
+or Ctrl+C. It uses no existing uv installation or managed Python environment.
+The generator and measurement harness use only the Python standard library.
 
-To find the best count on the current machine:
+The default runtime matrix is CPython 3.12.14, 3.13.15, and 3.14.7 with the GIL,
+plus free-threaded 3.13.15 and 3.14.7. Setup pins uv to 0.12.11. The bootstrap
+Python runs orchestration only; measurements run on the downloaded interpreters.
+Versions are declared in [environment.py](environment.py).
+
+## Select Python versions and callers
+
+The default compares one and six callers. `--sweep` tests every count from one
+through the available CPU count minus one, with a minimum of one:
 
 ```sh
-python3.14 benchmarks/run.py --sweep --output out/benchmark-sweep
+python3 benchmarks/run.py --sweep --output out/benchmark-sweep
 ```
 
-`--sweep` tests every count from one through the available CPU count minus one,
-with a minimum of one. CPU availability respects process affinity where the
-interpreter exposes it. To test chosen counts, use `--threads 2 4 6 8`; one worker
-is always included. The default of six is a comparison point, not a claim that
-six is fastest on every machine.
-
-Use `--python` repeatedly to compare installed interpreters. An executable name
-on `PATH` or an absolute path works, including free-threaded builds:
+Pass `--python` once per version to download. A `t` suffix selects a free-threaded
+build. Executable paths are rejected. Exact patch versions make the runtime
+selection repeatable; requests such as `3.14` resolve the version available to
+the pinned uv release.
 
 ```sh
-python3.14 benchmarks/run.py --sweep \
-  --python python3.12 --python python3.13 --python python3.14 \
-  --python python3.13t --python python3.14t \
-  --baseline benchmarks/sdk/snapshots/baseline.py.txt \
-  --output out/benchmark-versions
+python3 benchmarks/run.py --python 3.13.15t --python 3.14.7t \
+  --threads 2 4 6 8 --output out/benchmark-free-threaded
 ```
 
-The tool does not install interpreters. Omit any build that is unavailable.
-`--baseline` accepts a generator source snapshot or a local git revision. The
-current checkout and optional baseline are copied into the output directory
-before measurement, with their SHA-256 hashes. Comparisons use the same bit widths,
-call counts, and thread counts for both sources.
+One caller is always included. CPU availability respects process availability or
+affinity where the interpreter exposes it. The SDK's six-group default is a
+starting point; choose its count from measurements on the deployment machine.
 
-For a quick setup check, shorten the run. These settings are too small for a
-worker recommendation:
+For a setup check, run a small matrix. This still provisions a fresh environment:
 
 ```sh
-python3.14 benchmarks/run.py --threads 2 --repeats 1 \
+python3 benchmarks/run.py --python 3.14.7 --threads 2 --repeats 1 \
   --calls 1000 --correctness-calls 1000 --output out/benchmark-smoke
 ```
 
-The output directory must be new. It contains:
+These small samples cannot establish the fastest worker count.
+
+## Compare implementations
+
+Each run measures the checkout's generator. `--baseline` adds a comparison with
+a local git revision or a generator source file. Both implementations use the
+same bit widths, call counts, and caller counts. Each source is copied into the
+results directory and identified by its SHA-256 hash.
+
+This command uses the reference comparison's sample sizes and caller counts:
+
+```sh
+python3 benchmarks/run.py --threads 1 2 3 4 5 6 7 8 9 \
+  --baseline 4763e1ac9def84b3abeabba7ddb70f7f48c09d3e \
+  --repeats 5 --calls 500000 --correctness-calls 100000 \
+  --output out/benchmark-comparison
+```
+
+The revision must exist in the local checkout. The default five-build matrix
+applies when `--python` is omitted. For longer free-threaded samples:
+
+```sh
+python3 benchmarks/run.py --sweep \
+  --python 3.13.15t --python 3.14.7t \
+  --repeats 5 --calls 5000000 --correctness-calls 100000 \
+  --output out/benchmark-long-samples
+```
+
+Repeat a command with a new output directory to provision and measure again.
+Existing output is never overwritten or resumed. Results under `out/` are
+ignored by git. Benchmark artifacts are generated locally rather than committed.
+
+## Results and privacy
 
 | File | Contents |
 |---|---|
-| `README.md` | Timing tables, sample ranges, correctness totals, and best tested worker counts |
-| `results.jsonl` | Every trial with source hash, runtime, GIL state, wall/CPU time, and correctness counts |
+| `README.md` | Timing tables, sample ranges, correctness totals, and best tested caller counts |
+| `results.jsonl` | Every trial's source hash, runtime/GIL metadata, wall/CPU time, and correctness counts |
 | `summary.json` | Per-case medians, extrema, and median absolute deviations |
-| `config.json`, `snapshots/` | Exact jobs, interpreter paths, and measured source |
+| `config.json`, `snapshots/` | Python version requests, pinned uv version, exact jobs, and measured source |
 
-Run without competing CPU workloads. The report measures integer generation;
-encoding, I/O, and application scheduling can change the best count. Overlapping
-sample ranges need longer trials before choosing between close results. Increase
-`--calls` or `--repeats` for those comparisons. Timing differences never cause a
-test failure.
+Generated metadata contains Python versions and relative snapshot filenames.
+It omits interpreter paths, checkout paths, and temporary environment paths.
+The retained files can be inspected after the temporary environments are removed.
 
 ## Measurement method
 
-Each timing trial runs in a fresh process. Cases are shuffled within each
-repetition, with the seed recorded in `config.json`. The harness warms the path
-with 20,000 calls; private generators and factory assignments are warmed inside
-each caller. A barrier starts threaded timing, and the last caller stops it.
-Thread creation, imports, and uniqueness checks are outside timing. Cyclic GC is
-disabled during measurement. `--calls` is the total per trial, divided among
-callers, rather than the number per caller.
+The benchmark compares these ownership models:
 
-The direct profiles cover millisecond, second, and minute resolution with one
-machine ID, plus a millisecond profile with four IDs. Threaded trials use
-millisecond resolution and 22 sequence bits; the machine bit width fits the
-largest tested count. Private callers and factory groups have disjoint machine
-IDs. Shared-lock trials use one `ThreadSafeGenerator`. The factory uses one group
-per measured caller and creates no threads itself.
+| Mode | Ownership |
+|---|---|
+| Direct | Unlocked `Generator` or locked `ThreadSafeGenerator`, called by the main thread |
+| Shared lock | Application threads call one `ThreadSafeGenerator` |
+| Private | Each caller owns an unlocked `Generator` and disjoint machine ID |
+| Factory | Application threads share `Generator.threadsafe`, with one persistent group per caller |
 
-Every configured correctness case runs twice with `--correctness-calls` IDs per
-trial, defaulting to one million. Shared-lock and factory cases with multiple
-callers also run at a 1 µs thread-switch interval, capped at 200,000 IDs. Timing
-results exclude these checks. The harness records runtime and GIL state for every
-trial and rejects free-threaded runs whose GIL becomes enabled.
+Each timing case uses seven fresh processes by default, with one million calls
+per process. Cases are shuffled within each repetition using a recorded seed;
+trials run serially. The harness warms 20,000 calls, uses a real wall clock with
+an epoch one day earlier, and disables cyclic GC during measurement. Private
+instances and factory assignments are warmed inside each caller.
 
-The benchmark reuses [the measurement harness](pr99/benchmark.py). The integration
-tests in [test_benchmark_cli.py](../python/tests/test_benchmark_cli.py) cover execution
-from another directory, source comparisons, correctness, and output preservation.
+A barrier starts threaded timing, and the last caller stops it. Imports,
+initialization, thread creation, and uniqueness checks are outside timing.
+`--calls` is the total per trial, divided among callers. One-caller threaded
+cases run in a worker thread. Sequence capacity avoids deliberate waiting in
+throughput trials; the generator tests cover exhaustion separately.
 
-## Recorded SDK results
+| Profile | Resolution | Machine IDs | Machine bits | Sequence bits |
+|---|---|---|---:|---:|
+| millisecond | millisecond | 0 | 0 | 22 |
+| four_machines | millisecond | 0, 1, 2, 3 | 2 | 12 |
+| second | second | 0 | 0 | 22 |
+| minute | minute | 0 | 0 | 24 |
+| threaded | millisecond | 0 shared; caller index private or factory | Enough for largest caller count | 22 |
 
-The recorded machine is a 10-core Apple M1 Max. The SDK matrix measures standard
-CPython 3.12.14, 3.13.15, and 3.14.7, plus free-threaded 3.13.15 and 3.14.7, with
-every caller count from one through nine. Its baseline is main at `4763e1a`;
-the measured SDK is included in commit `d44de33`. Exact source and harness hashes
-are in [provenance.json](sdk/provenance.json), with the measured source files in
-[snapshots/](sdk/snapshots/).
+Each correctness case runs twice, with one million IDs per trial by default.
+`--correctness-calls` changes that count. Shared-lock and factory cases with
+multiple callers also run at a 1 µs thread-switch interval, capped at 200,000 IDs.
+The checks fail on duplicates or non-increasing IDs within a worker. Their timing
+is excluded from performance results. Each trial records runtime and GIL state;
+a free-threaded trial with its GIL enabled fails the run.
 
-| Experiment | Settings | Evidence |
-|---|---|---|
-| SDK matrix | 1,525 timing trials; five samples of 500,000 IDs per case | [Report](sdk/README.md), [raw trials](sdk/results.jsonl.gz) |
-| Correctness matrix | 570 trials; 57 million IDs; zero duplicates or within-worker decreases | [Job configuration](sdk/config.json), [raw trials](sdk/results.jsonl.gz) |
-| Longer free-threaded trials | 180 trials; five samples of five million IDs per factory/private case | [Report](sdk/confirmation.md), [raw trials](sdk/confirmation-results.jsonl.gz) |
-| Test suite | 95 tests and 26 subtests pass on each of five builds | [Test results](sdk/tests.json) |
+Reports use median time per ID and aggregate throughput, with sample ranges and
+median absolute deviations. Sample ranges are not confidence intervals. Process
+CPU time includes worker teardown and joins; it covers a slightly wider interval
+than timed generation. Affinity and clock frequency are uncontrolled. Run without
+competing CPU workloads and increase `--calls` or `--repeats` for close results.
+Encoding and application I/O are outside this benchmark.
 
-Direct single-thread `Generator` calls take 16.0–22.6% less median time than the
-baseline in the millisecond profile. Use one generation worker on standard
-CPython. The longer free-threaded trials give these factory results:
+## Optimization rationale
+
+| Implementation | Cost or behavior |
+|---|---|
+| Direct dispatch from `ThreadSafeGenerator` | Calls the generation body under the lock without a `super()` lookup per ID |
+| Clock bound at construction | Avoids a Python lambda call; `current_time` remains replaceable |
+| Cached integer resolution | Avoids an enum property lookup per clock read; assigning `resolution` updates the divisor |
+| Conditional machine-ID packing | Skips the shift when machine bits are zero and preserves the ID layout |
+
+Caching resolution had the largest observed effect on private free-threaded
+scaling in the isolated candidate comparisons. Reduced shared enum access is a
+plausible contributor; no native contention profile established that mechanism.
+Lazy `defaultdict` state preserves initialization when a single-owner generator's
+machine list is extended. Eager dictionaries fail that compatibility case.
+Plain-dictionary and local-rotation candidates gave inconsistent gains across
+builds; unconditional machine-ID packing slowed the zero-machine-bit profile.
+
+A shared lock serializes generation, so extra callers add contention. Standard
+CPython's GIL also limits Python CPU parallelism. Private generators and factory
+groups can run concurrently on free-threaded builds, but scheduling and runtime
+coordination still cost time. Increasing CPU work per ID while throughput falls
+indicates overhead without identifying its source.
+
+## Reference measurements
+
+The reference machine was a 10-core Apple M1 Max running macOS 26.6.2. The matrix
+used the five default Python builds and every caller count from one through
+nine. Against generator source at `4763e1a`, direct millisecond `Generator` calls
+took 16.0–22.6% less median time across those builds. The matrix included 1,525
+timing trials and 570 correctness trials, with no duplicates across 57 million
+checked IDs. These are recorded observations; a new run produces new results.
+
+Longer free-threaded trials used five samples of five million IDs per case:
 
 | Python | Best measured factory groups | Million IDs/s | Six groups, million IDs/s |
 |---|---:|---:|---:|
 | 3.13.15, GIL disabled | 4 | 3.284 | 2.663 |
 | 3.14.7, GIL disabled | 4 | 4.873 | 4.194 |
 
-The SDK default remains six groups. Four is this machine's observed factory
-winner; the four- and six-group sample ranges overlap on 3.14t. Its shorter trials
-rank eight groups first, so trial length matters. Private unlocked generators
-peak at seven workers on 3.13t and four on 3.14t. See the
-[recommendation](sdk/recommendation.md) for ranges and ownership costs.
-
-A shared `ThreadSafeGenerator` serializes generation on one lock; more callers
-add contention. The GIL also limits Python CPU parallelism on standard builds.
-Factory groups and private generators can run concurrently on free-threaded
-builds, but scheduling and runtime coordination still cost time. These trials
-measure the throughput decline at higher counts without isolating its cause.
-
-## Reproduce the recorded settings
-
-Run from the repository root with the five matching builds installed. Replace
-the executable names with their paths if necessary. This command matches the
-recorded matrix's counts and sample sizes, including on machines with a different
-CPU count:
-
-```sh
-python3.14 benchmarks/run.py --threads 1 2 3 4 5 6 7 8 9 \
-  --python python3.12 --python python3.13 --python python3.14 \
-  --python python3.13t --python python3.14t \
-  --baseline benchmarks/sdk/snapshots/baseline.py.txt \
-  --repeats 5 --calls 500000 --correctness-calls 100000 \
-  --output out/sdk-reproduction
-```
-
-The current side always measures the checkout's generator. Use commit `d44de33`
-to measure the recorded SDK source; later checkouts measure their own code.
-The archived baseline snapshot avoids dependence on a moving `main` branch.
-Different hardware, runtime builds, and system load can produce different results.
-
-For longer samples on the deployment machine's free-threaded builds:
-
-```sh
-python3.14 benchmarks/run.py --sweep \
-  --python python3.13t --python python3.14t \
-  --repeats 5 --calls 5000000 --correctness-calls 100000 \
-  --output out/sdk-long-samples
-```
-
-This portable command includes direct and shared-lock measurements. To repeat
-only the recorded 180 factory/private trials, copy
-[confirmation-config.json](sdk/confirmation-config.json) to a new file. Set its
-`interpreters` values to local executable paths, its `sources.current.path` to
-the absolute path of `benchmarks/sdk/snapshots/current.py.txt`, and every job's
-`revision` to `file:` followed by that same absolute path. Then run:
-
-```sh
-python3.14 benchmarks/pr99/benchmark.py run /path/to/confirmation-config.json \
-  --output out/sdk-confirmation.jsonl
-```
-
-Create `out/` first if it does not exist and choose a new results filename.
-The low-level harness resumes existing output by job index; reuse it only with
-the identical configuration.
-
-## Regenerate reports from archived trials
-
-These commands validate and summarize existing archives without rerunning timing
-trials or requiring the original interpreter paths:
-
-```sh
-python3.14 benchmarks/sdk/report_sdk.py
-python3.14 benchmarks/refactor/report_refactor.py
-python3.14 benchmarks/pr99/report.py
-```
-
-The SDK command verifies 2,095 matrix trials and 180 longer trials against their
-configured jobs and source hashes, then rewrites the SDK matrix and confirmation
-reports and JSON summaries. Raw archives use `.jsonl.gz`; new portable runs write
-uncompressed `results.jsonl`. The other commands regenerate the historical
-reports below from their own recorded data.
-
-## Report index
-
-The PR comparison and refactor reports preserve historical source snapshots.
-Their numbers do not measure the current factory; use the SDK matrix for that API.
-
-| Experiment | Results |
-|---|---|
-| Current SDK against main at `4763e1a` | [SDK matrix](sdk/README.md) |
-| Current factory and private worker counts | [Longer trials](sdk/confirmation.md), [recommendation](sdk/recommendation.md) |
-| Original API versus mandatory locking in PR #99 | [PR comparison](pr99/README.md) |
-| Optimized opt-in API across five Python builds | [Refactor matrix](refactor/README.md) |
-| Longer free-threaded worker-count trials | [Confirmation](refactor/confirmation.md) |
-| Historical M1 Max worker recommendations | [Recommendation](refactor/recommendation.md) |
+Use one generation worker on standard CPython. Four factory groups had the
+highest longer-trial median on this M1 Max; six remains the SDK default. The
+four- and six-group ranges overlap on 3.14t, and shorter trials ranked eight
+first. Private generators peaked at seven workers on 3.13t and four on 3.14t.
+Choose counts using the full workload on the deployment machine.
