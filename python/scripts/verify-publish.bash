@@ -30,12 +30,6 @@ await_index() {
     rt net::await_url "$1/pypi/$PROJECT_NAME/$VERSION/json"
 }
 
-if [[ "$#" -eq 0 ]]; then
-    echo "You must specify --test or --prod as arguments" >&2
-    echo
-    exit 1
-fi
-
 echo "Creating a virtual env..."
 VENV="$(mktemp -d)/venv"
 readonly VENV
@@ -49,34 +43,8 @@ echo "Copying verification script..."
 cp "$DIR"/../src/scripts/verify_install.py "$VENV/verify_install.py"
 
 echo "Attempting to install version ($VERSION) in virtualenv ($VENV)..."
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-    --test)
-        # The cli extras come from the main index because test.pypi does not
-        # carry every third-party package.
-        CLI_DEPS="$(uv run --no-project python -c "import tomllib; print(' '.join(tomllib.load(open('$DIR/../pyproject.toml','rb'))['project'].get('optional-dependencies', {}).get('cli', [])))")"
-        if [ -n "$CLI_DEPS" ]; then
-            echo "Installing cli extras from main index, since not all packages are available in test.pypi..."
-            # shellcheck disable=SC2086
-            uv pip install $CLI_DEPS
-        fi
-        await_index "https://test.pypi.org"
-        echo "Attempting install: ${PROJECT_NAME}==$VERSION"
-        uv pip install --refresh-package "$PROJECT_NAME" --index-url https://test.pypi.org/simple/ "${PROJECT_NAME}==$VERSION"
-        ;;
-    --prod)
-        await_index "https://pypi.org"
-        echo "Attempting install: ${PROJECT_NAME}==$VERSION"
-        uv pip install --refresh-package "$PROJECT_NAME" "${PROJECT_NAME}[cli]==$VERSION"
-        ;;
-    --*= | -*)
-        echo "Error: Unsupported flag $1" >&2
-        echo
-        exit 1
-        ;;
-    esac
-    shift
-done
+await_index "https://pypi.org"
+uv pip install --refresh-package "$PROJECT_NAME" "${PROJECT_NAME}[cli]==$VERSION"
 
 pushd "$VENV" >/dev/null 2>&1
 "$VENV/bin/python" verify_install.py

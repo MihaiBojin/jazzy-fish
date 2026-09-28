@@ -173,7 +173,7 @@ jobs:
 
       - name: Verify package install from PyPI
         working-directory: python
-        run: scripts/verify-publish.bash --prod
+        run: scripts/verify-publish.bash
 
       # Runs after the install check, which waits for PyPI to serve the files.
       - name: Verify attestations on PyPI

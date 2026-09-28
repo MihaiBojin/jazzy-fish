@@ -255,7 +255,8 @@ jobs:
 2. **`tag`** -- reads `version` from `pyproject.toml` and tags the commit `v<version>`, unless that tag
    already exists. It needs `lint-test`, so nothing is tagged until the tests pass: a bad tag is far
    more awkward to retract than a failed build is to fix.
-3. **`publish`** -- builds the tag and uploads it to test.PyPI and PyPI.
+3. **`publish`** -- builds the tag, signs a [PEP 740](https://peps.python.org/pep-0740/) attestation
+   for each dist, uploads both to test.PyPI and PyPI, then verifies PyPI serves the attestations back.
 4. **`github-release`** -- turns the tag into a [release](https://github.com/MihaiBojin/jazzy-fish/releases),
    with notes generated from the pull requests merged since the previous one. The notes are only as
    informative as the pull request titles they are built from.
@@ -279,40 +280,6 @@ The workflow authenticates with [Trusted Publishing](https://docs.pypi.org/trust
 holds no API tokens. PyPI and test.PyPI each exchange the workflow's OIDC identity for a short-lived
 upload token, which requires `id-token: write` on the publishing job and a trusted publisher registered
 on **both** indexes, pointing at `cicd.yml` in this repository.
-
-#### Manual
-
-These steps can also be performed locally. Trusted Publishing only works from CI, so publishing by hand
-still needs tokens:
-
-```shell
-export TESTPYPI_PASSWORD=... # token for https://test.pypi.org/legacy/
-export PYPI_PASSWORD=... # token for https://upload.pypi.org/legacy/
-```
-
-The `Makefile` passes these to `uv publish` as `UV_PUBLISH_TOKEN`; the test index is defined as
-`testpypi` under `[[tool.uv.index]]` in `pyproject.toml`.
-
-Every target below publishes the version currently in `pyproject.toml`, so set it there first. Note that
-**uploads are irreversible**: a version number can never be reused, even after deleting a release.
-
-First, publish to the test repo, then inspect and verify it:
-
-```shell
-make publish-test
-make build-inspect        # lists the wheel and archive contents
-make publish-test-verify  # installs from test.PyPI into a throwaway venv
-```
-
-If correct, distribute the wheel to the PyPI index and verify it:
-
-```shell
-make publish
-make publish-verify
-```
-
-Unlike the tagged release, this path runs no linters or tests, and nothing checks the version against a
-tag. Prefer tagging; reach for this only when the workflow cannot run.
 
 ### Generate wordlists
 
