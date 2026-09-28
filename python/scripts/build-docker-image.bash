@@ -9,16 +9,7 @@ source "$DIR/functions.bash"
 
 # The image tag only names the image; the package version comes from
 # pyproject.toml during the build, so nothing here rewrites it.
-TAG="$(get_git_sha)"
-if [ -z "$(is_dirty)" ]; then
-    # Working dir is clean, attempt to use tag
-    GITTAG="$(get_tag_at_head)"
-
-    # If git tag found, use it
-    if [ -n "$GITTAG" ]; then
-        TAG="$GITTAG"
-    fi
-fi
+TAG="$(get_image_tag)"
 readonly TAG
 
 # Load project name from project manifest
