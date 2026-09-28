@@ -35,7 +35,7 @@ readonly DRY_RUN
 
 # The version is read from the working copy, so an uncommitted bump would tag a
 # commit that does not carry it. CI checkouts are clean; this catches the local run.
-if [ -n "$(is_dirty)" ]; then
+if rt git::is_dirty; then
     echo "Working directory is dirty, cannot proceed..." >&2
     git status --porcelain >&2
     exit 1
@@ -45,27 +45,26 @@ VERSION="$(get_project_version)"
 readonly VERSION
 TAG="v$VERSION"
 readonly TAG
+REMOTE="$(rt git::remote)"
+readonly REMOTE
 
 # Ask the remote rather than the local clone: a CI checkout may not have
 # fetched tags, and the remote is what decides whether the tag is taken.
 #
-# Exit 2 is git's "no such ref", the one case that means carry on. Anything else --
-# no network, no permission, no origin -- is a failure to answer the question, and
-# tagging anyway would be guessing. The '2>/dev/null' this replaced hid the
-# difference and pushed a tag on an unanswered question.
+# Exit 2 means the tag is absent. Network and permission failures stop the release.
 set +e
-git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null
+git ls-remote --exit-code --tags "$REMOTE" "refs/tags/$TAG" >/dev/null
 LS_REMOTE_STATUS=$?
 set -e
 readonly LS_REMOTE_STATUS
 case "$LS_REMOTE_STATUS" in
 0)
-    echo "Tag $TAG already exists on origin; nothing to release." >&2
+    echo "Tag $TAG already exists on $REMOTE; nothing to release." >&2
     exit 0
     ;;
-2) ;; # Not on origin: this is the release.
+2) ;; # The remote has no tag for this version.
 *)
-    echo "Could not ask origin about $TAG (git exited $LS_REMOTE_STATUS); refusing to tag." >&2
+    echo "Could not ask $REMOTE about $TAG (git exited $LS_REMOTE_STATUS); refusing to tag." >&2
     exit 1
     ;;
 esac
@@ -76,8 +75,6 @@ if [ -n "$DRY_RUN" ]; then
     exit 0
 fi
 
-echo "Tagging HEAD ($(git rev-parse --short HEAD)) as $TAG..." >&2
-git tag -a "$TAG" -m "Release $VERSION"
-git push origin "$TAG" >&2
+rt git::release "$TAG" --push >&2
 
 echo "$TAG"
