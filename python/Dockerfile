@@ -1,5 +1,5 @@
 FROM python:3.14-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /uvx /bin/
 
 # Compile bytecode for faster cold starts; copy (not link) so the cache mount
 # may live on another filesystem; never download an interpreter, the base
