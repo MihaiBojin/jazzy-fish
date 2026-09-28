@@ -8,6 +8,17 @@
 # new name on both indexes first.
 name: CI/CD
 
+# Default to read-only. Jobs that need more say so explicitly, and naming any
+# permission in a job drops these defaults rather than adding to them.
+permissions:
+  contents: read
+
+# One release pipeline at a time. Two merges in quick succession would otherwise
+# race the tag job. Never cancel: a half-finished publish is worse than a queue.
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   # Test pull requests; tag and publish are skipped
   pull_request:
@@ -21,16 +32,18 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up uv and Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -64,10 +77,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.14"
           enable-cache: true
@@ -83,9 +96,15 @@ jobs:
         run: echo "tag=$(scripts/tag-release.bash)" >>"$GITHUB_OUTPUT"
 
       - name: Report
+        # Through env rather than ${{ }} inside the script: this job holds
+        # contents: write, and the tag traces back to the version field in
+        # pyproject.toml. git accepts a tag name containing a command
+        # substitution, so interpolating it into a shell body is avoidable risk.
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          if [ -n "${{ steps.tag.outputs.tag }}" ]; then
-            echo "Tagged ${{ steps.tag.outputs.tag }}" >>"$GITHUB_STEP_SUMMARY"
+          if [ -n "$TAG" ]; then
+            echo "Tagged $TAG" >>"$GITHUB_STEP_SUMMARY"
           else
             echo "No version change; nothing to release." >>"$GITHUB_STEP_SUMMARY"
           fi
@@ -104,7 +123,7 @@ jobs:
 
     steps:
       - name: Checkout the tag
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.tag.outputs.tag }}
           # git::assert_tag_version reads the tags at HEAD, which a checkout of
@@ -112,7 +131,7 @@ jobs:
           fetch-tags: true
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.14"
           enable-cache: true
