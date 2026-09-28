@@ -151,6 +151,14 @@ jobs:
         working-directory: python
         run: uv build
 
+      # Writes a Sigstore-signed PEP 740 attestation next to each dist, signed
+      # with this workflow's OIDC identity; 'uv publish' uploads them with the
+      # dists. Both indexes trust the same identity, so one signature serves
+      # test.PyPI and PyPI.
+      - name: Attest
+        working-directory: python
+        run: uvx pypi-attestations@0.0.30 sign dist/*
+
       # No tokens: PyPI and test.PyPI each exchange this workflow's OIDC
       # identity for a short-lived upload token. 'always' rather than the
       # default 'automatic' so a missing or misconfigured trusted publisher
@@ -166,6 +174,15 @@ jobs:
       - name: Verify package install from PyPI
         working-directory: python
         run: scripts/verify-publish.bash --prod
+
+      # Runs after the install check, which waits for PyPI to serve the files.
+      - name: Verify attestations on PyPI
+        working-directory: python
+        run: |
+          for f in dist/*.whl dist/*.tar.gz; do
+            uvx pypi-attestations@0.0.30 verify pypi \
+              --repository "https://github.com/$GITHUB_REPOSITORY" "pypi:${f#dist/}"
+          done
 
   # Publishing to PyPI leaves the GitHub side of a release bare: a tag and
   # nothing else. This turns each tag into a release whose notes are built from
