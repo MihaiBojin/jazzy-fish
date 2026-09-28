@@ -35,6 +35,8 @@ class Resolution(Enum):
 class Generator:
     """
     Generates unique integer identifiers with configurable properties.
+    Callers serialize access through single-thread ownership or an external lock.
+    Use ThreadSafeGenerator for an internal lock; the GIL alone is insufficient.
 
     Attributes:
         epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
@@ -75,12 +77,9 @@ class Generator:
                                 If set to 0, only one identifier can be generated per machine in each time unit
         """
 
-        # Round the epoch to whole milliseconds up front. Multiplying float seconds
-        # by 1000 and truncating loses a millisecond for most fractional values --
-        # int(1.001 * 1000) is 1000 -- so the clock works in integer milliseconds.
+        # Rounding preserves whole milliseconds in fractional epoch values.
         self.epoch_millis = round(epoch * 1000)
-        # Allows replacing the time in tests
-        self.current_time: Callable[[], float] = lambda: time.time()
+        self.current_time: Callable[[], float] = time.time
         self.resolution = resolution
 
         # Reject future epochs before next_id() can wait for the clock to catch up.
@@ -120,16 +119,24 @@ class Generator:
         self.sequence_bits = sequence_bits
         self.max_sequence = (1 << sequence_bits) - 1 if sequence_bits > 0 else 0
 
-        # Variables that help handle multiple machine IDs and corresponding sequences
         self.sequences: Dict[int, int] = defaultdict(int)
         self.last_times: Dict[int, int] = defaultdict(lambda: -1)
         self.current_machine_index = 0
+
+    @property
+    def resolution(self) -> Resolution:
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, resolution: Resolution) -> None:
+        self._resolution_millis = resolution.value
+        self._resolution = resolution
 
     def next_id(self) -> int:
         """
         Generates unique values according to the configured class settings.
         If the maximum sequences per time unit have already been generated,
-        the method will busy-wait until the next time unit has been reached.
+        the method waits until the next time unit, sleeping between clock checks.
 
         Returns:
             int: A unique integer identifier, relative to the configured time unit, and machine ID.
@@ -160,20 +167,17 @@ class Generator:
         self.last_times[machine_id] = last_time
         self.sequences[machine_id] = sequence
 
-        id = current_time << (self.machine_id_bits + self.sequence_bits)
+        sequence_bits = self.sequence_bits
+        identifier = current_time << (self.machine_id_bits + sequence_bits)
         if self.machine_id_bits > 0:
-            id |= machine_id << self.sequence_bits
-        if self.sequence_bits > 0:
-            id |= sequence
-
-        return id
+            identifier |= machine_id << sequence_bits
+        return identifier | sequence
 
     def _current_time(self) -> int:
-        # round(), not int(): float seconds carry the same representation error on
-        # the way in that they do for the epoch.
+        # Rounding preserves whole milliseconds in fractional clock readings.
         return (
             round(self.current_time() * 1000) - self.epoch_millis
-        ) // self.resolution.value
+        ) // self._resolution_millis
 
     def _wait_for_next_time(self, current_time: int, last_time: int) -> int:
         """
@@ -186,7 +190,7 @@ class Generator:
         the loop only re-runs if the clock had not advanced as far as expected.
         """
 
-        deadline_millis = (last_time + 1) * self.resolution.value + self.epoch_millis
+        deadline_millis = (last_time + 1) * self._resolution_millis + self.epoch_millis
         while current_time <= last_time:
             remaining_millis = deadline_millis - int(self.current_time() * 1000)
             if remaining_millis > 0:
@@ -208,7 +212,7 @@ class Generator:
             int: The largest possible identifier at that moment.
         """
 
-        time_units = (round(when * 1000) - self.epoch_millis) // self.resolution.value
+        time_units = (round(when * 1000) - self.epoch_millis) // self._resolution_millis
         identifier = time_units << (self.machine_id_bits + self.sequence_bits)
         if self.machine_id_bits > 0:
             identifier |= max(self.machine_ids) << self.sequence_bits
@@ -230,7 +234,7 @@ class Generator:
         """
 
         time_units = capacity >> (self.machine_id_bits + self.sequence_bits)
-        return (self.epoch_millis + time_units * self.resolution.value) / 1000
+        return (self.epoch_millis + time_units * self._resolution_millis) / 1000
 
     def _next_machine_id(self) -> int:
         machine_id = self.machine_ids[self.current_machine_index]
@@ -242,7 +246,8 @@ class Generator:
 
 class ThreadSafeGenerator(Generator):
     """
-    Wraps the Generator class, making it thread safe (wrapping `next_id()` with a lock).
+    Serializes next_id() calls with a lock so threads can share one instance.
+    Configuration and clock changes require callers to stop generation first.
 
     Attributes:
        epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
@@ -285,6 +290,8 @@ class ThreadSafeGenerator(Generator):
         super().__init__(epoch, resolution, machine_ids, machine_id_bits, sequence_bits)
         self.lock = threading.Lock()
 
+    _next_id_unlocked = Generator.next_id
+
     def next_id(self) -> int:
         """
         Generates unique values in a thread safe manner, by wrapping Generator.next_id() with a lock.
@@ -294,7 +301,7 @@ class ThreadSafeGenerator(Generator):
         """
 
         with self.lock:
-            return super().next_id()
+            return self._next_id_unlocked()
 
 
 class GeneratorException(Exception):

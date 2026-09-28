@@ -90,6 +90,47 @@ It can map the following solution domains:
 
 Two-word sequences may be impractical for sustained identifier generation, however, three word and four word sequences can sustain 87 and 38,238 years respectively at a rate of 1 identifier generated per second, using a single machine.
 
+### Threads and generator ownership
+
+| Class | Caller responsibility |
+|---|---|
+| `Generator` | Serialize access with single-thread ownership or an external lock |
+| `ThreadSafeGenerator` | Share the instance across threads; `next_id()` takes an internal lock |
+
+`Generator.next_id()` has no lock. The GIL alone does not make its sequence updates
+atomic. Use `ThreadSafeGenerator` when the library should synchronize callers:
+
+```python
+from jazzy_fish.generator import Resolution, ThreadSafeGenerator
+
+generator = ThreadSafeGenerator(
+    epoch=1727740800,
+    resolution=Resolution.MILLISECOND,
+    machine_ids=[3],
+    machine_id_bits=4,
+    sequence_bits=12,
+)
+identifier = generator.next_id()  # Any application thread may call this instance.
+```
+
+Allocate machine IDs per application process. Threads in a process share the
+same generator and its machine IDs. The internal lock protects sequence state;
+thread identity does not select a machine ID. Processes producing IDs in the
+same domain need disjoint machine-ID allocations and matching epoch, resolution,
+and bit widths. Avoid overlapping generator state for the same allocation.
+
+Stop callers before changing configuration or the `current_time` callable.
+IDs increase within each machine's sequence; interleaving machine IDs or callers
+does not promise completion order. Machine and sequence bits consume the
+encoder's ID budget; choose them using the capacity helpers below.
+
+A shared `ThreadSafeGenerator` serializes generation. Additional callers provide
+safe concurrent access but do not parallelize its generation loop. The
+[portable benchmark](../benchmarks/README.md) measures direct calls and shared
+callers across Python versions using fresh temporary environments.
+SDK-managed workers and bulk generation are tracked in
+[issue #124](https://github.com/MihaiBojin/jazzy-fish/issues/124).
+
 ### How long a configuration lasts
 
 The combination counts above are a solution space, not a lifetime. The generator packs the
