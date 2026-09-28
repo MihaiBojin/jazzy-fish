@@ -1,0 +1,37 @@
+[
+  {
+    "label": "3.12",
+    "interpreter": "/Users/embo/.local/share/uv/python/cpython-3.12-macos-aarch64-none/bin/python3.12",
+    "returncode": 0,
+    "seconds": 17.11095620901324,
+    "summary": ".........................................\n----------------------------------------------------------------------\nRan 41 tests in 17.038s\n\nOK\n"
+  },
+  {
+    "label": "3.13",
+    "interpreter": "/Users/embo/.local/share/uv/python/cpython-3.13-macos-aarch64-none/bin/python3.13",
+    "returncode": 0,
+    "seconds": 17.173389666946605,
+    "summary": ".........................................\n----------------------------------------------------------------------\nRan 41 tests in 17.093s\n\nOK\n"
+  },
+  {
+    "label": "3.14",
+    "interpreter": "/Users/embo/.local/share/uv/python/cpython-3.14-macos-aarch64-none/bin/python3.14",
+    "returncode": 0,
+    "seconds": 17.120767791988328,
+    "summary": ".........................................\n----------------------------------------------------------------------\nRan 41 tests in 17.039s\n\nOK\n"
+  },
+  {
+    "label": "3.13t",
+    "interpreter": "/private/tmp/jazzy-fish-bench-python/cpython-3.13.15+freethreaded-macos-aarch64-none/bin/python3.13t",
+    "returncode": 0,
+    "seconds": 17.280986958066933,
+    "summary": ".........................................\n----------------------------------------------------------------------\nRan 41 tests in 17.066s\n\nOK\n"
+  },
+  {
+    "label": "3.14t",
+    "interpreter": "/private/tmp/jazzy-fish-bench-python/cpython-3.14.7+freethreaded-macos-aarch64-none/bin/python3.14t",
+    "returncode": 0,
+    "seconds": 17.186605750001036,
+    "summary": ".........................................\n----------------------------------------------------------------------\nRan 41 tests in 17.054s\n\nOK\n"
+  }
+]

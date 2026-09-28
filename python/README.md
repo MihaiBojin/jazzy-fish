@@ -90,6 +90,56 @@ It can map the following solution domains:
 
 Two-word sequences may be impractical for sustained identifier generation, however, three word and four word sequences can sustain 87 and 38,238 years respectively at a rate of 1 identifier generated per second, using a single machine.
 
+### Threads and generator ownership
+
+Use `Generator` when one thread owns the instance. Its `next_id()` method has no
+lock. Use `Generator.threadsafe(..., threads=6)` when application threads share
+an instance. The default is six persistent groups, each with its own lock and
+machine IDs. The SDK creates no threads.
+
+```python
+from jazzy_fish.generator import Generator, Resolution
+
+single = Generator(
+    epoch=1727740800,
+    resolution=Resolution.MILLISECOND,
+    machine_ids=[0],
+    machine_id_bits=3,
+    sequence_bits=12,
+)
+shared = Generator.threadsafe(
+    epoch=1727740800,
+    resolution=Resolution.MILLISECOND,
+    machine_ids=[1, 2, 3, 4, 5, 6],
+    machine_id_bits=3,
+    sequence_bits=12,
+    threads=6,
+)
+identifier = single.next_id()  # Call from one thread.
+identifier = shared.next_id()  # Call from any application thread.
+```
+
+Supply at least one distinct machine ID per group. The factory preserves the
+configured bit widths and divides the supplied IDs among groups. Additional
+application threads share group locks; each calling thread keeps its assignment.
+Group state persists when a thread exits. `threads=1` returns a
+`ThreadSafeGenerator`, which serializes calls with one lock and remains available
+directly. Stop all callers before replacing `current_time` or `resolution`.
+Machine IDs and bit widths are construction-time settings.
+
+All instances producing IDs in the same domain must use the same epoch,
+resolution, and bit widths. Assign disjoint machine IDs to overlapping instances.
+IDs increase within each machine's sequence; interleaving machine IDs or callers
+does not provide a global completion order. Machine and sequence bits consume
+the encoder's ID budget; choose them using the capacity helpers below.
+
+Choose the worker count by measuring the intended workload. Standard CPython's
+GIL limits CPU parallelism. Free-threaded Python can execute separate groups in
+parallel, while calls sharing one group serialize. The
+[portable benchmark](../benchmarks/README.md) accepts multiple Python executables
+and tests one through the available CPU count minus one with `--sweep`. Six is
+the factory default; the best count depends on the machine and workload.
+
 ### How long a configuration lasts
 
 The combination counts above are a solution space, not a lifetime. The generator packs the

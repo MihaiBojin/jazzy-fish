@@ -1,0 +1,197 @@
+[
+  {
+    "runtime": {
+      "version": "3.12.14 (main, Sep  1 2026, 14:09:38) [Clang 22.1.3 ]",
+      "executable": "/Users/embo/.local/share/uv/python/cpython-3.12-macos-aarch64-none/bin/python3.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit",
+      "machine": "arm64",
+      "logical_cpus": 10,
+      "gil_enabled": true,
+      "free_threaded_build": false,
+      "switch_interval": 0.005,
+      "timer": {
+        "implementation": "mach_absolute_time()",
+        "monotonic": true,
+        "adjustable": false,
+        "resolution": 4.166666666666667e-08
+      },
+      "load_average": [
+        6.71484375,
+        6.73486328125,
+        7.17529296875
+      ]
+    },
+    "core_ast_equal": true,
+    "deterministic_profiles": 5,
+    "tests": [
+      {
+        "revision": "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761",
+        "tests": 7,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 17.005s\n\nOK\n"
+      },
+      {
+        "revision": "7cc9e250eb01f6434ceeb1224475a2b10953777d",
+        "tests": 10,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\ntest_generator_does_not_emit_duplicates_at_a_short_switch_interval (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_at_a_short_switch_interval) ... ok\ntest_generator_does_not_emit_duplicates_under_threads (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_under_threads) ... ok\ntest_thread_safe_generator_still_works_and_warns (tests_test_generator_concurrency.TestGeneratorConcurrency.test_thread_safe_generator_still_works_and_warns) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 17.438s\n\nOK\n"
+      }
+    ]
+  },
+  {
+    "runtime": {
+      "version": "3.13.15 (main, Sep  1 2026, 14:05:45) [Clang 22.1.3 ]",
+      "executable": "/Users/embo/.local/share/uv/python/cpython-3.13-macos-aarch64-none/bin/python3.13",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "logical_cpus": 10,
+      "gil_enabled": true,
+      "free_threaded_build": false,
+      "switch_interval": 0.005,
+      "timer": {
+        "implementation": "mach_absolute_time()",
+        "monotonic": true,
+        "adjustable": false,
+        "resolution": 4.166666666666666e-08
+      },
+      "load_average": [
+        5.4384765625,
+        6.43701171875,
+        7.0517578125
+      ]
+    },
+    "core_ast_equal": true,
+    "deterministic_profiles": 5,
+    "tests": [
+      {
+        "revision": "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761",
+        "tests": 7,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 17.015s\n\nOK\n"
+      },
+      {
+        "revision": "7cc9e250eb01f6434ceeb1224475a2b10953777d",
+        "tests": 10,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\ntest_generator_does_not_emit_duplicates_at_a_short_switch_interval (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_at_a_short_switch_interval) ... ok\ntest_generator_does_not_emit_duplicates_under_threads (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_under_threads) ... ok\ntest_thread_safe_generator_still_works_and_warns (tests_test_generator_concurrency.TestGeneratorConcurrency.test_thread_safe_generator_still_works_and_warns) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 17.372s\n\nOK\n"
+      }
+    ]
+  },
+  {
+    "runtime": {
+      "version": "3.14.7 (main, Sep  1 2026, 14:05:28) [Clang 22.1.3 ]",
+      "executable": "/Users/embo/.local/share/uv/python/cpython-3.14-macos-aarch64-none/bin/python3.14",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "logical_cpus": 10,
+      "gil_enabled": true,
+      "free_threaded_build": false,
+      "switch_interval": 0.005,
+      "timer": {
+        "implementation": "mach_absolute_time()",
+        "monotonic": true,
+        "adjustable": false,
+        "resolution": 4.166666666666666e-08
+      },
+      "load_average": [
+        5.35791015625,
+        6.29541015625,
+        6.9736328125
+      ]
+    },
+    "core_ast_equal": true,
+    "deterministic_profiles": 5,
+    "tests": [
+      {
+        "revision": "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761",
+        "tests": 7,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 17.093s\n\nOK\n"
+      },
+      {
+        "revision": "7cc9e250eb01f6434ceeb1224475a2b10953777d",
+        "tests": 10,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\ntest_generator_does_not_emit_duplicates_at_a_short_switch_interval (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_at_a_short_switch_interval) ... ok\ntest_generator_does_not_emit_duplicates_under_threads (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_under_threads) ... ok\ntest_thread_safe_generator_still_works_and_warns (tests_test_generator_concurrency.TestGeneratorConcurrency.test_thread_safe_generator_still_works_and_warns) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 17.344s\n\nOK\n"
+      }
+    ]
+  },
+  {
+    "runtime": {
+      "version": "3.13.15 experimental free-threading build (main, Sep  1 2026, 14:05:50) [Clang 22.1.3 ]",
+      "executable": "/private/tmp/jazzy-fish-bench-python/cpython-3.13.15+freethreaded-macos-aarch64-none/bin/python3.13t",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "logical_cpus": 10,
+      "gil_enabled": false,
+      "free_threaded_build": true,
+      "switch_interval": 0.005,
+      "timer": {
+        "implementation": "mach_absolute_time()",
+        "monotonic": true,
+        "adjustable": false,
+        "resolution": 4.166666666666666e-08
+      },
+      "load_average": [
+        5.1357421875,
+        6.12158203125,
+        6.8818359375
+      ]
+    },
+    "core_ast_equal": true,
+    "deterministic_profiles": 5,
+    "tests": [
+      {
+        "revision": "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761",
+        "tests": 7,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 17.003s\n\nOK\n"
+      },
+      {
+        "revision": "7cc9e250eb01f6434ceeb1224475a2b10953777d",
+        "tests": 10,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\ntest_generator_does_not_emit_duplicates_at_a_short_switch_interval (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_at_a_short_switch_interval) ... ok\ntest_generator_does_not_emit_duplicates_under_threads (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_under_threads) ... ok\ntest_thread_safe_generator_still_works_and_warns (tests_test_generator_concurrency.TestGeneratorConcurrency.test_thread_safe_generator_still_works_and_warns) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 17.620s\n\nOK\n"
+      }
+    ]
+  },
+  {
+    "runtime": {
+      "version": "3.14.7 free-threading build (main, Sep  1 2026, 14:07:44) [Clang 22.1.3 ]",
+      "executable": "/private/tmp/jazzy-fish-bench-python/cpython-3.14.7+freethreaded-macos-aarch64-none/bin/python3.14t",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "machine": "arm64",
+      "logical_cpus": 10,
+      "gil_enabled": false,
+      "free_threaded_build": true,
+      "switch_interval": 0.005,
+      "timer": {
+        "implementation": "mach_absolute_time()",
+        "monotonic": true,
+        "adjustable": false,
+        "resolution": 4.166666666666666e-08
+      },
+      "load_average": [
+        4.09619140625,
+        5.75732421875,
+        6.71826171875
+      ]
+    },
+    "core_ast_equal": true,
+    "deterministic_profiles": 5,
+    "tests": [
+      {
+        "revision": "95affdf00dd2c4b3a0a6ffa2c7185aaaa03c1761",
+        "tests": 7,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 17.005s\n\nOK\n"
+      },
+      {
+        "revision": "7cc9e250eb01f6434ceeb1224475a2b10953777d",
+        "tests": 10,
+        "passed": true,
+        "output": "test_generate_id (tests_test_generator.TestGenerator.test_generate_id) ... ok\ntest_generator_does_not_overlap_machines (tests_test_generator.TestGenerator.test_generator_does_not_overlap_machines) ... ok\ntest_generator_is_threadsafe (tests_test_generator.TestGenerator.test_generator_is_threadsafe) ... ok\ntest_guarded_machine_id (tests_test_generator.TestGenerator.test_guarded_machine_id) ... ok\ntest_ids_are_increasing (tests_test_generator.TestGenerator.test_ids_are_increasing) ... ok\ntest_single_machine_id (tests_test_generator.TestGenerator.test_single_machine_id) ... ok\ntest_single_sequence (tests_test_generator.TestGenerator.test_single_sequence) ... ok\ntest_generator_does_not_emit_duplicates_at_a_short_switch_interval (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_at_a_short_switch_interval) ... ok\ntest_generator_does_not_emit_duplicates_under_threads (tests_test_generator_concurrency.TestGeneratorConcurrency.test_generator_does_not_emit_duplicates_under_threads) ... ok\ntest_thread_safe_generator_still_works_and_warns (tests_test_generator_concurrency.TestGeneratorConcurrency.test_thread_safe_generator_still_works_and_warns) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 17.472s\n\nOK\n"
+      }
+    ]
+  }
+]
