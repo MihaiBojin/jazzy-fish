@@ -3,7 +3,8 @@
   "extends": [
     "github>MihaiBojin/renovate",
     "github>MihaiBojin/renovate:group-github-actions",
-    "github>MihaiBojin/renovate:pre-commit"
+    "github>MihaiBojin/renovate:pre-commit",
+    "github>MihaiBojin/renovate:uvx"
   ],
   "constraintsFiltering": "strict"
 }
