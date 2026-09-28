@@ -39,8 +39,9 @@ python3 benchmarks/run.py --python 3.13.15t --python 3.14.7t \
 ```
 
 One caller is always included. CPU availability respects process availability or
-affinity where the interpreter exposes it. The SDK's six-group default is a
-starting point; choose its count from measurements on the deployment machine.
+affinity where the interpreter exposes it. Six is the benchmark's default
+comparison count. The library creates no threads; choose application concurrency
+by measuring the complete workload.
 
 For a setup check, run a small matrix. This still provisions a fresh environment:
 
@@ -101,15 +102,13 @@ The benchmark compares these ownership models:
 | Mode | Ownership |
 |---|---|
 | Direct | Unlocked `Generator` or locked `ThreadSafeGenerator`, called by the main thread |
-| Shared lock | Application threads call one `ThreadSafeGenerator` |
-| Private | Each caller owns an unlocked `Generator` and disjoint machine ID |
-| Factory | Application threads share `Generator.threadsafe`, with one persistent group per caller |
+| Shared lock | Application threads call one `ThreadSafeGenerator` with one process-level machine ID |
 
 Each timing case uses seven fresh processes by default, with one million calls
 per process. Cases are shuffled within each repetition using a recorded seed;
 trials run serially. The harness warms 20,000 calls, uses a real wall clock with
-an epoch one day earlier, and disables cyclic GC during measurement. Private
-instances and factory assignments are warmed inside each caller.
+an epoch one day earlier, and disables cyclic GC during measurement. All threaded
+callers share the same generator state.
 
 A barrier starts threaded timing, and the last caller stops it. Imports,
 initialization, thread creation, and uniqueness checks are outside timing.
@@ -123,11 +122,11 @@ throughput trials; the generator tests cover exhaustion separately.
 | four_machines | millisecond | 0, 1, 2, 3 | 2 | 12 |
 | second | second | 0 | 0 | 22 |
 | minute | minute | 0 | 0 | 24 |
-| threaded | millisecond | 0 shared; caller index private or factory | Enough for largest caller count | 22 |
+| threaded | millisecond | 0 shared by every caller | 0 | 22 |
 
 Each correctness case runs twice, with one million IDs per trial by default.
-`--correctness-calls` changes that count. Shared-lock and factory cases with
-multiple callers also run at a 1 µs thread-switch interval, capped at 200,000 IDs.
+`--correctness-calls` changes that count. Shared-lock cases with multiple callers
+also run at a 1 µs thread-switch interval, capped at 200,000 IDs.
 The checks fail on duplicates or non-increasing IDs within a worker. Their timing
 is excluded from performance results. Each trial records runtime and GIL state;
 a free-threaded trial with its GIL enabled fails the run.
@@ -148,38 +147,32 @@ Encoding and application I/O are outside this benchmark.
 | Cached integer resolution | Avoids an enum property lookup per clock read; assigning `resolution` updates the divisor |
 | Conditional machine-ID packing | Skips the shift when machine bits are zero and preserves the ID layout |
 
-Caching resolution had the largest observed effect on private free-threaded
-scaling in the isolated candidate comparisons. Reduced shared enum access is a
-plausible contributor; no native contention profile established that mechanism.
+The cached divisor avoids repeated enum access while preserving resolution
+reassignment. The benchmark compares the combined optimizations against the
+selected baseline. It does not isolate native runtime contention.
 Lazy `defaultdict` state preserves initialization when a single-owner generator's
 machine list is extended. Eager dictionaries fail that compatibility case.
 Plain-dictionary and local-rotation candidates gave inconsistent gains across
 builds; unconditional machine-ID packing slowed the zero-machine-bit profile.
 
 A shared lock serializes generation, so extra callers add contention. Standard
-CPython's GIL also limits Python CPU parallelism. Private generators and factory
-groups can run concurrently on free-threaded builds, but scheduling and runtime
-coordination still cost time. Increasing CPU work per ID while throughput falls
-indicates overhead without identifying its source.
+CPython's GIL also limits Python CPU parallelism, but it does not make the
+unlocked generator safe to share. Machine IDs are process-level allocations;
+changing the caller count does not change the benchmark's machine ID or bit
+width. Increasing CPU work per ID while throughput falls indicates overhead
+without identifying its source.
 
 ## Reference measurements
 
-The reference machine was a 10-core Apple M1 Max running macOS 26.6.2. The matrix
-used the five default Python builds and every caller count from one through
-nine. Against generator source at `4763e1a`, direct millisecond `Generator` calls
-took 16.0–22.6% less median time across those builds. The matrix included 1,525
-timing trials and 570 correctness trials, with no duplicates across 57 million
-checked IDs. These are recorded observations; a new run produces new results.
+The reference machine was a 10-core Apple M1 Max running macOS 26.6.2. Across
+the five default Python builds, direct millisecond `Generator` calls took
+16.0–22.6% less median time than generator source at `4763e1a`. These are recorded
+observations; a new run produces new results.
 
-Longer free-threaded trials used five samples of five million IDs per case:
+Use one caller to measure the shared generator's generation capacity, then test
+the concurrency required by the application. Additional callers do not create
+independent generation paths. The report selects the highest observed median
+and includes sample ranges; small differences do not establish a distinct optimum.
 
-| Python | Best measured factory groups | Million IDs/s | Six groups, million IDs/s |
-|---|---:|---:|---:|
-| 3.13.15, GIL disabled | 4 | 3.284 | 2.663 |
-| 3.14.7, GIL disabled | 4 | 4.873 | 4.194 |
-
-Use one generation worker on standard CPython. Four factory groups had the
-highest longer-trial median on this M1 Max; six remains the SDK default. The
-four- and six-group ranges overlap on 3.14t, and shorter trials ranked eight
-first. Private generators peaked at seven workers on 3.13t and four on 3.14t.
-Choose counts using the full workload on the deployment machine.
+SDK-managed workers and bulk generation for a possible HTTP service are tracked
+in [issue #124](https://github.com/MihaiBojin/jazzy-fish/issues/124).

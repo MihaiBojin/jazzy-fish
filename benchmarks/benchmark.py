@@ -23,7 +23,7 @@ PROFILES = {
     "four_machines": ("MILLISECOND", [0, 1, 2, 3], 2, 12),
     "second": ("SECOND", [0], 0, 22),
     "minute": ("MINUTE", [0], 0, 24),
-    "threaded": ("MILLISECOND", [0], 4, 22),
+    "threaded": ("MILLISECOND", [0], 0, 22),
 }
 
 
@@ -70,20 +70,15 @@ def execute(job: dict[str, Any]) -> dict[str, Any]:
         module.ThreadSafeGenerator if variant == "opt_in" else module.Generator
     )
     resolution, machine_ids, machine_bits, sequence_bits = PROFILES[job["profile"]]
-    machine_bits = job.get("machine_id_bits", machine_bits)
-    if variant == "factory":
-        constructor = module.Generator.threadsafe
-        machine_ids = list(range(job["threads"]))
     epoch = time.time() - 86400
 
-    def make_generator(machine_id: int | None = None) -> Any:
+    def make_generator() -> Any:
         return constructor(
             epoch=epoch,
             resolution=getattr(module.Resolution, resolution),
-            machine_ids=machine_ids if machine_id is None else [machine_id],
+            machine_ids=machine_ids,
             machine_id_bits=machine_bits,
             sequence_bits=sequence_bits,
-            **({"threads": job["threads"]} if variant == "factory" else {}),
         )
 
     if job.get("switch_interval"):
@@ -97,7 +92,6 @@ def execute(job: dict[str, Any]) -> dict[str, Any]:
     threads = job["threads"]
     count = job["calls"]
     collect = job["kind"] == "correctness"
-    private = variant == "private"
     results: list[Any] = [None] * threads
     errors: list[str | None] = [None] * threads
     starts = [0] * threads
@@ -112,11 +106,7 @@ def execute(job: dict[str, Any]) -> dict[str, Any]:
 
     def worker(index: int) -> None:
         try:
-            instance = make_generator(index) if private else generator
-            if private or variant == "factory":
-                for _ in range(20_000):
-                    instance.next_id()
-            next_id = instance.next_id
+            next_id = generator.next_id
             worker_calls = count // threads + (index < count % threads)
             if threads > 1 or job.get("worker_thread"):
                 barrier.wait(timeout=60)

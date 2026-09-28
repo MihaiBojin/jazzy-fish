@@ -35,8 +35,8 @@ class Resolution(Enum):
 class Generator:
     """
     Generates unique integer identifiers with configurable properties.
-    Direct instances serve one thread. Use threadsafe() to create a generator
-    for several application threads.
+    Callers serialize access through single-thread ownership or an external lock.
+    Use ThreadSafeGenerator for an internal lock; the GIL alone is insufficient.
 
     Attributes:
         epoch (float): The epoch that the time component will be relative to; set to 0.0 for UNIX time.
@@ -122,27 +122,6 @@ class Generator:
         self.sequences: Dict[int, int] = defaultdict(int)
         self.last_times: Dict[int, int] = defaultdict(lambda: -1)
         self.current_machine_index = 0
-
-    @staticmethod
-    def threadsafe(
-        epoch: float,
-        resolution: Resolution,
-        machine_ids: List[int],
-        machine_id_bits: int,
-        sequence_bits: int,
-        *,
-        threads: int = 6,
-    ) -> "Generator":
-        """Create persistent locked state groups for application-owned threads."""
-        if isinstance(threads, bool) or not isinstance(threads, int) or threads < 1:
-            raise GeneratorException("threads must be a positive integer")
-        if threads == 1:
-            return ThreadSafeGenerator(
-                epoch, resolution, machine_ids, machine_id_bits, sequence_bits
-            )
-        return _ThreadedGenerator(
-            epoch, resolution, machine_ids, machine_id_bits, sequence_bits, threads
-        )
 
     @property
     def resolution(self) -> Resolution:
@@ -323,73 +302,6 @@ class ThreadSafeGenerator(Generator):
 
         with self.lock:
             return self._next_id_unlocked()
-
-
-class _ThreadedGenerator(Generator):
-    """Assign each calling thread one persistent locked generator group."""
-
-    def __init__(
-        self,
-        epoch: float,
-        resolution: Resolution,
-        machine_ids: List[int],
-        machine_id_bits: int,
-        sequence_bits: int,
-        threads: int,
-    ):
-        self._groups: List[ThreadSafeGenerator] = []
-        super().__init__(epoch, resolution, machine_ids, machine_id_bits, sequence_bits)
-        if len(self.machine_ids) < threads:
-            raise GeneratorException(
-                f"threads={threads} requires at least {threads} distinct machine IDs"
-            )
-
-        self._groups = [
-            ThreadSafeGenerator(
-                epoch,
-                resolution,
-                self.machine_ids[index::threads],
-                machine_id_bits,
-                sequence_bits,
-            )
-            for index in range(threads)
-        ]
-        for group in self._groups:
-            group.current_time = self.current_time
-        self._local = threading.local()
-        self._assignment_lock = threading.Lock()
-        self._next_group = 0
-
-    @property
-    def current_time(self) -> Callable[[], float]:
-        return self._clock
-
-    @current_time.setter
-    def current_time(self, clock: Callable[[], float]) -> None:
-        self._clock = clock
-        for group in self._groups:
-            group.current_time = clock
-
-    @property
-    def resolution(self) -> Resolution:
-        return self._resolution
-
-    @resolution.setter
-    def resolution(self, resolution: Resolution) -> None:
-        self._resolution_millis = resolution.value
-        self._resolution = resolution
-        for group in self._groups:
-            group.resolution = resolution
-
-    def next_id(self) -> int:
-        method = getattr(self._local, "next_id", None)
-        if method is None:
-            with self._assignment_lock:
-                group = self._groups[self._next_group]
-                self._next_group = (self._next_group + 1) % len(self._groups)
-                method = group.next_id
-                self._local.next_id = method
-        return method()
 
 
 class GeneratorException(Exception):

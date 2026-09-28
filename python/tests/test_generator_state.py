@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, repeat
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +82,28 @@ class TestGeneratorState(unittest.TestCase):
                 generator.machine_ids.append(1)
                 self.assertEqual(generator.next_id(), 41)
                 self.assertEqual(generator.next_id(), 44)
+
+    def test_caller_lock_serializes_an_unlocked_generator(self):
+        generator = Generator(0, Resolution.SECOND, [0], 0, 16)
+        lock = threading.Lock()
+
+        def clock():
+            time.sleep(0)
+            return 5
+
+        generator.current_time = clock
+
+        def collect():
+            identifiers = []
+            for _ in range(100):
+                with lock:
+                    identifiers.append(generator.next_id())
+            return identifiers
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(collect) for _ in range(4)]
+            values = [value for future in futures for value in future.result()]
+        self.assertEqual(sorted(values), list(range(327680, 328080)))
 
     def test_shared_generator_serializes_a_clock_that_releases_the_gil(self):
         generator = ThreadSafeGenerator(0, Resolution.SECOND, [0], 0, 16)

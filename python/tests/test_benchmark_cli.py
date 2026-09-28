@@ -27,22 +27,22 @@ class TestBenchmarkCLI(unittest.TestCase):
         self.assertIsNone(result["load_average"])
         self.assertNotIn("executable", result)
 
-    def test_private_workers_can_use_more_than_sixteen_machine_ids(self):
+    def test_many_callers_share_one_process_machine_id(self):
         functions = runpy.run_path(str(ROOT / "benchmarks/benchmark.py"))
         result = functions["execute"](
             {
                 "source": str(ROOT / "python/src/jazzy_fish/generator.py"),
                 "kind": "correctness",
                 "profile": "threaded",
-                "variant": "private",
+                "variant": "opt_in",
                 "threads": 17,
-                "machine_id_bits": 5,
                 "calls": 1700,
                 "worker_thread": True,
             }
         )
         self.assertEqual(result["duplicates"], 0)
-        self.assertEqual(result["configuration"]["machine_id_bits"], 5)
+        self.assertEqual(result["configuration"]["machine_id_bits"], 0)
+        self.assertEqual(result["configuration"]["machine_ids"], [0])
 
     def test_run_from_another_directory_records_comparison_without_local_paths(self):
         functions = runpy.run_path(str(ROOT / "benchmarks/run.py"))
@@ -56,9 +56,7 @@ class TestBenchmarkCLI(unittest.TestCase):
             output = Path(directory) / "results"
             baseline = Path(directory) / "baseline.py"
             source = (ROOT / "python/src/jazzy_fish/generator.py").read_text()
-            baseline.write_text(
-                source.replace("def threadsafe(", "def fixture_threadsafe(")
-            )
+            baseline.write_text(source + "\n# Benchmark baseline fixture.\n")
             arguments = [
                 "--python",
                 "3.14.7",
@@ -93,19 +91,9 @@ class TestBenchmarkCLI(unittest.TestCase):
                 {row["implementation"] for row in rows}, {"baseline", "current"}
             )
             self.assertEqual({row["threads"] for row in rows}, {1, 2})
+            self.assertEqual({row["variant"] for row in rows}, {"unlocked", "opt_in"})
             self.assertTrue(
-                any(
-                    row["variant"] == "factory"
-                    for row in rows
-                    if row["implementation"] == "current"
-                )
-            )
-            self.assertFalse(
-                any(
-                    row["variant"] == "factory"
-                    for row in rows
-                    if row["implementation"] == "baseline"
-                )
+                all(row["variant"] == "opt_in" for row in rows if row["threads"] > 1)
             )
             checked = [row for row in rows if row["kind"] == "correctness"]
             self.assertTrue(checked)

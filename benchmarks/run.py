@@ -1,7 +1,6 @@
 """Compare generators on this machine and write raw trials and a report."""
 
 import argparse
-import ast
 import hashlib
 import json
 import random
@@ -17,20 +16,6 @@ import environment
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "python/src/jazzy_fish/generator.py"
-
-OWNERSHIP = {
-    "opt_in": "shared ThreadSafeGenerator",
-    "private": "private Generator per caller",
-    "factory": "Generator.threadsafe factory",
-}
-
-
-def threaded_variants(source: dict[str, Any]) -> tuple[str, ...]:
-    return (
-        ("opt_in", "private", "factory")
-        if source["has_factory"]
-        else ("opt_in", "private")
-    )
 
 
 def positive(value: str) -> int:
@@ -76,7 +61,6 @@ def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
         block = []
         for label in config["interpreters"]:
             counts = config["thread_counts"][label]
-            machine_bits = (max(counts) - 1).bit_length()
             for implementation, source in config["sources"].items():
                 common = {
                     "label": label,
@@ -92,49 +76,44 @@ def make_jobs(config: dict[str, Any]) -> list[dict[str, Any]]:
                             dict(common, profile=profile, variant=variant, threads=1)
                         )
                 for threads in counts:
-                    for variant in threaded_variants(source):
-                        block.append(
-                            dict(
-                                common,
-                                profile="threaded",
-                                variant=variant,
-                                threads=threads,
-                                machine_id_bits=machine_bits,
-                                worker_thread=True,
-                            )
+                    block.append(
+                        dict(
+                            common,
+                            profile="threaded",
+                            variant="opt_in",
+                            threads=threads,
+                            worker_thread=True,
                         )
+                    )
         random.Random(config["seed"] + repeat).shuffle(block)
         jobs.extend(block)
     for label in config["interpreters"]:
-        counts = config["thread_counts"][label]
         for implementation, source in config["sources"].items():
-            for threads in counts:
-                for variant in threaded_variants(source):
-                    for repeat in range(2):
-                        jobs.append(
-                            {
-                                "label": label,
-                                "implementation": implementation,
-                                "source": source["path"],
-                                "kind": "correctness",
-                                "profile": "threaded",
-                                "variant": variant,
-                                "threads": threads,
-                                "machine_id_bits": (max(counts) - 1).bit_length(),
-                                "calls": config["correctness_calls"],
-                                "repeat": repeat,
-                                "worker_thread": True,
-                            }
+            for threads in config["thread_counts"][label]:
+                for repeat in range(2):
+                    jobs.append(
+                        {
+                            "label": label,
+                            "implementation": implementation,
+                            "source": source["path"],
+                            "kind": "correctness",
+                            "profile": "threaded",
+                            "variant": "opt_in",
+                            "threads": threads,
+                            "calls": config["correctness_calls"],
+                            "repeat": repeat,
+                            "worker_thread": True,
+                        }
+                    )
+                if threads > 1:
+                    jobs.append(
+                        dict(
+                            jobs[-1],
+                            repeat=0,
+                            calls=min(config["correctness_calls"], 200_000),
+                            switch_interval=1e-6,
                         )
-                    if threads > 1 and variant != "private":
-                        jobs.append(
-                            dict(
-                                jobs[-1],
-                                repeat=0,
-                                calls=min(config["correctness_calls"], 200_000),
-                                switch_interval=1e-6,
-                            )
-                        )
+                    )
     return jobs
 
 
@@ -200,7 +179,7 @@ def write_report(output: Path, config: dict[str, Any]) -> None:
         "",
         "## Threaded throughput",
         "",
-        "Values are aggregate million IDs/second. Shared uses one ThreadSafeGenerator; private uses one unlocked Generator per caller with disjoint machine IDs. The factory uses Generator.threadsafe with one group per caller when the snapshot supports it. Higher throughput is better.",
+        "Values are aggregate million IDs/second. All callers share one ThreadSafeGenerator and one process-level machine ID. Higher throughput is better.",
         "",
         "| Python | Source | Ownership | Workers | Million IDs/s | Range |",
         "|---|---|---|---:|---:|---:|",
@@ -210,9 +189,8 @@ def write_report(output: Path, config: dict[str, Any]) -> None:
         key=lambda r: (r["label"], r["variant"], r["threads"], r["implementation"]),
     ):
         if row["profile"] == "threaded":
-            ownership = OWNERSHIP[row["variant"]]
             lines.append(
-                f"| {row['label']} | {row['implementation'].title()} | {ownership} | {row['threads']} | {row['million_ids_per_second']:.3f} | {1000 / row['max_ns']:.3f}–{1000 / row['min_ns']:.3f} |"
+                f"| {row['label']} | {row['implementation'].title()} | shared ThreadSafeGenerator | {row['threads']} | {row['million_ids_per_second']:.3f} | {1000 / row['max_ns']:.3f}–{1000 / row['min_ns']:.3f} |"
             )
     lines += [
         "",
@@ -222,21 +200,17 @@ def write_report(output: Path, config: dict[str, Any]) -> None:
         "|---|---|---:|---:|",
     ]
     for label in config["interpreters"]:
-        for variant in threaded_variants(config["sources"]["current"]):
-            cases = [
-                r
-                for r in timing
-                if r["label"] == label
-                and r["implementation"] == "current"
-                and r["profile"] == "threaded"
-                and r["variant"] == variant
-            ]
-            peak = max(
-                cases, key=lambda r: (r["million_ids_per_second"], -r["threads"])
-            )
-            lines.append(
-                f"| {label} | {OWNERSHIP[variant]} | {peak['threads']} | {peak['million_ids_per_second']:.3f} |"
-            )
+        cases = [
+            r
+            for r in timing
+            if r["label"] == label
+            and r["implementation"] == "current"
+            and r["profile"] == "threaded"
+        ]
+        peak = max(cases, key=lambda r: (r["million_ids_per_second"], -r["threads"]))
+        lines.append(
+            f"| {label} | shared ThreadSafeGenerator | {peak['threads']} | {peak['million_ids_per_second']:.3f} |"
+        )
     checked = [row for row in rows if row["kind"] == "correctness"]
     lines += [
         "",
@@ -246,9 +220,9 @@ def write_report(output: Path, config: dict[str, Any]) -> None:
         "",
         f"{len(checked):,} correctness trials checked {sum(r['calls'] for r in checked):,} IDs with zero duplicates and strictly increasing IDs within each worker. Each source is checked separately; snapshots do not share an ID domain.",
         "",
-        f"Each timing case has {config['repeats']} fresh-process samples of {config['calls']:,} calls. The measured path is warmed with 20,000 calls. Private generators and factory bindings are warmed inside each caller before timing. Threaded calls are divided evenly; a barrier starts the clock and the last caller stops it. Thread creation, imports, and uniqueness checks are outside timing. Cyclic GC is disabled during measurement. Correctness trials retain IDs, run separately, and include extra shared-generator checks with a 1 µs thread-switch interval. Their timings do not contribute to throughput estimates.",
+        f"Each timing case has {config['repeats']} fresh-process samples of {config['calls']:,} calls. The measured path is warmed with 20,000 calls. Threaded calls are divided evenly; a barrier starts the clock and the last caller stops it. Thread creation, imports, and uniqueness checks are outside timing. Cyclic GC is disabled during measurement. Correctness trials retain IDs, run separately, and include extra shared-generator checks with a 1 µs thread-switch interval. Their timings do not contribute to throughput estimates.",
         "",
-        "The direct profiles use millisecond, second, and minute resolution with one machine, plus a millisecond profile with four machine IDs. The threaded profile uses millisecond resolution and 22 sequence bits. Its machine bit width fits the largest tested count and is identical across sources and ownership modes. Each worker's machine ID is its zero-based index in private mode; shared mode uses machine ID zero. Factory mode supplies IDs zero through callers minus one and sets threads to the caller count. Full configuration and runtime metadata are in results.jsonl; interpreter and checkout paths are omitted.",
+        "The direct profiles use millisecond, second, and minute resolution with one machine, plus a millisecond profile with four machine IDs. The threaded profile uses millisecond resolution, machine ID zero, zero machine bits, and 22 sequence bits at every caller count. The internal lock protects the shared generator state. Full configuration and runtime metadata are in results.jsonl; interpreter and checkout paths are omitted.",
         "",
         "The CPU count uses process availability when supported, then CPU affinity, then the operating system's logical CPU count. Affinity and frequency are not controlled by this benchmark. Run without competing workloads for less variation. Free-threaded builds are checked after every trial to ensure the GIL remains disabled.",
         "",
@@ -348,18 +322,9 @@ def main(argv: list[str] | None = None) -> None:
             for name, source in sources.items():
                 path = Path("snapshots") / f"{name}.py.txt"
                 (output / path).write_bytes(source)
-                generator_class = next(
-                    node
-                    for node in ast.parse(source).body
-                    if isinstance(node, ast.ClassDef) and node.name == "Generator"
-                )
                 config["sources"][name] = {
                     "path": path.as_posix(),
                     "sha256": hashlib.sha256(source).hexdigest(),
-                    "has_factory": any(
-                        isinstance(node, ast.FunctionDef) and node.name == "threadsafe"
-                        for node in generator_class.body
-                    ),
                 }
             config["jobs"] = make_jobs(config)
             (output / "config.json").write_text(json.dumps(config, indent=2) + "\n")

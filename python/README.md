@@ -92,54 +92,44 @@ Two-word sequences may be impractical for sustained identifier generation, howev
 
 ### Threads and generator ownership
 
-Use `Generator` when one thread owns the instance. Its `next_id()` method has no
-lock. Use `Generator.threadsafe(..., threads=6)` when application threads share
-an instance. The default is six persistent groups, each with its own lock and
-machine IDs. The SDK creates no threads.
+| Class | Caller responsibility |
+|---|---|
+| `Generator` | Serialize access with single-thread ownership or an external lock |
+| `ThreadSafeGenerator` | Share the instance across threads; `next_id()` takes an internal lock |
+
+`Generator.next_id()` has no lock. The GIL alone does not make its sequence updates
+atomic. Use `ThreadSafeGenerator` when the library should synchronize callers:
 
 ```python
-from jazzy_fish.generator import Generator, Resolution
+from jazzy_fish.generator import Resolution, ThreadSafeGenerator
 
-single = Generator(
+generator = ThreadSafeGenerator(
     epoch=1727740800,
     resolution=Resolution.MILLISECOND,
-    machine_ids=[0],
-    machine_id_bits=3,
+    machine_ids=[3],
+    machine_id_bits=4,
     sequence_bits=12,
 )
-shared = Generator.threadsafe(
-    epoch=1727740800,
-    resolution=Resolution.MILLISECOND,
-    machine_ids=[1, 2, 3, 4, 5, 6],
-    machine_id_bits=3,
-    sequence_bits=12,
-    threads=6,
-)
-identifier = single.next_id()  # Call from one thread.
-identifier = shared.next_id()  # Call from any application thread.
+identifier = generator.next_id()  # Any application thread may call this instance.
 ```
 
-Supply at least one distinct machine ID per group. The factory preserves the
-configured bit widths and divides the supplied IDs among groups. Additional
-application threads share group locks; each calling thread keeps its assignment.
-Group state persists when a thread exits. `threads=1` returns a
-`ThreadSafeGenerator`, which serializes calls with one lock and remains available
-directly. Stop all callers before replacing `current_time` or `resolution`.
-Machine IDs and bit widths are construction-time settings.
+Allocate machine IDs per application process. Threads in a process share the
+same generator and its machine IDs. The internal lock protects sequence state;
+thread identity does not select a machine ID. Processes producing IDs in the
+same domain need disjoint machine-ID allocations and matching epoch, resolution,
+and bit widths. Avoid overlapping generator state for the same allocation.
 
-All instances producing IDs in the same domain must use the same epoch,
-resolution, and bit widths. Assign disjoint machine IDs to overlapping instances.
+Stop callers before changing configuration or the `current_time` callable.
 IDs increase within each machine's sequence; interleaving machine IDs or callers
-does not provide a global completion order. Machine and sequence bits consume
-the encoder's ID budget; choose them using the capacity helpers below.
+does not promise completion order. Machine and sequence bits consume the
+encoder's ID budget; choose them using the capacity helpers below.
 
-Choose the worker count by measuring the intended workload. Standard CPython's
-GIL limits CPU parallelism. Free-threaded Python can execute separate groups in
-parallel, while calls sharing one group serialize. The
-[portable benchmark](../benchmarks/README.md) downloads the requested Python
-versions into fresh temporary environments and tests one through the available
-CPU count minus one with `--sweep`. Six is
-the factory default; the best count depends on the machine and workload.
+A shared `ThreadSafeGenerator` serializes generation. Additional callers provide
+safe concurrent access but do not parallelize its generation loop. The
+[portable benchmark](../benchmarks/README.md) measures direct calls and shared
+callers across Python versions using fresh temporary environments.
+SDK-managed workers and bulk generation are tracked in
+[issue #124](https://github.com/MihaiBojin/jazzy-fish/issues/124).
 
 ### How long a configuration lasts
 
