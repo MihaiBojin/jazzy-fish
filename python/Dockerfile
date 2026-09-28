@@ -44,4 +44,11 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
+# The entrypoint writes its results to out/ under WORKDIR, so the directory has
+# to exist and be owned by the user before dropping privileges.
+RUN useradd --create-home --uid 1000 jazzy \
+    && mkdir -p /app/out \
+    && chown -R jazzy:jazzy /app
+USER jazzy
+
 ENTRYPOINT ["/app/.venv/bin/generate-wordlists"]

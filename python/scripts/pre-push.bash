@@ -5,7 +5,12 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly DIR
 
 echo "Running pre-push hook..."
-pushd "$DIR/.." >/dev/null 2>&1 || (echo "Could not set working directory" && exit 1)
+# Braces, not a subshell: 'exit' inside ( ) leaves the parent script running in
+# the wrong directory.
+pushd "$DIR/.." >/dev/null 2>&1 || {
+    echo "Could not set working directory" >&2
+    exit 1
+}
 
 echo "Syncing the environment..."
 uv sync --all-extras
