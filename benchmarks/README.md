@@ -59,10 +59,10 @@ a local git revision or a generator source file. Both implementations use the
 same bit widths, call counts, and caller counts. Each source is copied into the
 results directory and identified by its SHA-256 hash.
 
-This command uses the reference comparison's sample sizes and caller counts:
+This command runs the reference comparison, adapting caller counts to the machine:
 
 ```sh
-python3 benchmarks/run.py --threads 1 2 3 4 5 6 7 8 9 \
+python3 benchmarks/run.py --sweep \
   --baseline 4763e1ac9def84b3abeabba7ddb70f7f48c09d3e \
   --repeats 5 --calls 500000 --correctness-calls 100000 \
   --output out/benchmark-comparison
@@ -164,15 +164,56 @@ without identifying its source.
 
 ## Reference measurements
 
-The reference machine was a 10-core Apple M1 Max running macOS 26.6.2. Across
-the five default Python builds, direct millisecond `Generator` calls took
-16.0–22.6% less median time than generator source at `4763e1a`. These are recorded
-observations; a new run produces new results.
+The 2026-09-28 reference run measures generator source at `0c62a73` against
+`4763e1a` on a 10-core Apple M1 Max running macOS 26.6.2. It uses the comparison
+command above: five samples of 500,000 calls per case, all five Python builds,
+and one through nine callers. The matrix contains 850 timing trials and 260
+correctness trials. All 26 million checked IDs are unique within their trial
+and strictly increasing within each caller. Both free-threaded builds keep the
+GIL disabled. Fresh environments are removed after the run.
 
-Use one caller to measure the shared generator's generation capacity, then test
-the concurrency required by the application. Additional callers do not create
-independent generation paths. The report selects the highest observed median
-and includes sample ranges; small differences do not establish a distinct optimum.
+Direct millisecond calls, median ns/ID; lower is better. These profiles use
+machine ID zero, zero machine bits, and 22 sequence bits. The `t` suffix means
+a free-threaded build with its GIL disabled.
+
+| Python | Baseline `Generator` | Current `Generator` | Baseline `ThreadSafeGenerator` | Current `ThreadSafeGenerator` |
+|---|---:|---:|---:|---:|
+| 3.12.14 | 546.3 | 434.3 | 679.5 | 572.0 |
+| 3.13.15 | 545.7 | 436.4 | 665.5 | 551.1 |
+| 3.14.7 | 466.4 | 363.3 | 577.9 | 438.5 |
+| 3.13.15t | 742.1 | 578.5 | 936.5 | 706.1 |
+| 3.14.7t | 483.8 | 378.6 | 607.2 | 474.8 |
+
+The unlocked class takes 20.0–22.1% less median time than the baseline; the
+internally locked class takes 15.8–24.6% less. The internal lock still adds
+per-call cost relative to the current unlocked class.
+
+Current shared `ThreadSafeGenerator`, median aggregate million IDs/s; higher
+is better. Every caller uses the same generator and machine ID zero.
+
+| Callers | 3.12.14 | 3.13.15 | 3.14.7 | 3.13.15t | 3.14.7t |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1.746 | 1.803 | 2.286 | 1.357 | 1.964 |
+| 2 | 1.733 | 1.843 | 2.282 | 0.938 | 1.571 |
+| 3 | 1.776 | 1.832 | 2.225 | 0.858 | 1.238 |
+| 4 | 1.739 | 1.798 | 2.219 | 0.815 | 1.209 |
+| 5 | 1.748 | 1.857 | 2.248 | 0.640 | 0.929 |
+| 6 | 1.709 | 1.842 | 2.249 | 0.538 | 0.806 |
+| 7 | 1.708 | 1.805 | 2.235 | 0.500 | 0.737 |
+| 8 | 1.732 | 1.776 | 2.262 | 0.484 | 0.694 |
+| 9 | 1.745 | 1.817 | 2.226 | 0.471 | 0.673 |
+
+Use one caller for generation-only work, since additional callers cannot run
+the locked generation body concurrently. On 3.12 and 3.13 with the GIL, the
+highest medians occur at three and five callers, respectively, but exceed the
+one-caller median by only 1.7% and 3.0%. Their sample ranges overlap the
+one-caller ranges, so these measurements do not establish a distinct optimum.
+The remaining builds peak at one caller. Both free-threaded builds lose about
+60% of their one-caller throughput with six callers.
+
+Application concurrency should follow the complete workload. The generated
+report includes both sources at every caller count and all sample ranges;
+rerun it on the deployment machine before selecting application thread counts.
 
 SDK-managed workers and bulk generation for a possible HTTP service are tracked
 in [issue #124](https://github.com/MihaiBojin/jazzy-fish/issues/124).
