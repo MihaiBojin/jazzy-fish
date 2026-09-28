@@ -34,7 +34,6 @@ install:
 setup: install
 	@echo "Setting up repo for local development..."
 	@uv run pre-commit install --install-hooks
-	@touch .env
 
 .PHONY: lint
 lint:
@@ -76,26 +75,6 @@ docker-run:
 	@echo
 	@echo "Running Docker image..."
 	@scripts/run-docker-image.bash $(ARGS)
-
-.PHONY: publish-test
-publish-test: build
-	@echo "Publishing to test repo..."
-	@UV_PUBLISH_TOKEN="$$TESTPYPI_PASSWORD" uv publish --index testpypi
-
-.PHONY: publish-test-verify
-publish-test-verify:
-	@echo "Verifying test.PyPI package..."
-	@scripts/verify-publish.bash --test
-
-.PHONY: publish
-publish: build
-	@echo "Publishing to PyPI..."
-	@UV_PUBLISH_TOKEN="$$PYPI_PASSWORD" uv publish
-
-.PHONY: publish-verify
-publish-verify:
-	@echo "Verifying PyPI package..."
-	@scripts/verify-publish.bash --prod
 
 .PHONY: show-stats
 show-stats:
