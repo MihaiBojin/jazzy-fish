@@ -251,7 +251,7 @@ uv lock
 Open a pull request with that change. Merging it runs `cicd.yml`, a single pipeline of four
 jobs:
 
-1. **`lint-test`** -- linters and tests across every supported Python version.
+1. **`lint-test`** -- linters and tests across every supported Python version, on both `ubuntu-24.04` and `ubuntu-26.04`.
 2. **`tag`** -- reads `version` from `pyproject.toml` and tags the commit `v<version>`, unless that tag
    already exists. It needs `lint-test`, so nothing is tagged until the tests pass: a bad tag is far
    more awkward to retract than a failed build is to fix.
