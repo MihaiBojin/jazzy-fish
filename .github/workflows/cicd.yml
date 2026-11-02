@@ -29,11 +29,13 @@ on:
 
 jobs:
   lint-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
         python-version: ["3.12", "3.13", "3.14"]
 
     steps:
@@ -69,7 +71,7 @@ jobs:
   tag:
     needs: lint-test
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       # Push the tag
       contents: write
@@ -117,7 +119,7 @@ jobs:
     needs: tag
     # Empty when the version was already tagged, i.e. an ordinary merge
     if: needs.tag.outputs.tag != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       # Mints the OIDC token that PyPI exchanges for a short-lived upload
       # token. Naming any permission drops the defaults, so 'contents: read'
@@ -196,7 +198,7 @@ jobs:
     # Redundant with the skipped 'publish' it depends on, but stated so the
     # condition for running is readable in one place
     if: needs.tag.outputs.tag != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
