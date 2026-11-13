@@ -159,7 +159,7 @@ jobs:
       # test.PyPI and PyPI.
       - name: Attest
         working-directory: python
-        run: uvx pypi-attestations@0.0.30 sign dist/*
+        run: uvx pypi-attestations@0.0.31 sign dist/*
 
       # No tokens: PyPI and test.PyPI each exchange this workflow's OIDC
       # identity for a short-lived upload token. 'always' rather than the
@@ -182,7 +182,7 @@ jobs:
         working-directory: python
         run: |
           for f in dist/*.whl dist/*.tar.gz; do
-            uvx pypi-attestations@0.0.30 verify pypi \
+            uvx pypi-attestations@0.0.31 verify pypi \
               --repository "https://github.com/$GITHUB_REPOSITORY" "pypi:${f#dist/}"
           done
 
